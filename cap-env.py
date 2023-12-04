@@ -290,8 +290,12 @@ CORNER_POS = {
   'bottom right corner': (0.3 - 0.05,  -0.8 + 0.05, 0),
 }
 
-ALL_BLOCKS = ['blue block', 'red block', 'green block', 'orange block', 'yellow block', 'purple block', 'pink block', 'cyan block', 'brown block', 'gray block']
-ALL_BOWLS = ['blue bowl', 'red bowl', 'green bowl', 'orange bowl', 'yellow bowl', 'purple bowl', 'pink bowl', 'cyan bowl', 'brown bowl', 'gray bowl']
+# ALL_BLOCKS = ['blue block', 'red block', 'green block', 'orange block', 'yellow block', 'purple block', 'pink block', 'cyan block', 'brown block', 'gray block']
+# ALL_BOWLS = ['blue bowl', 'red bowl', 'green bowl', 'orange bowl', 'yellow bowl', 'purple bowl', 'pink bowl', 'cyan bowl', 'brown bowl', 'gray bowl']
+
+ALL_BLOCKS = ['blue block', 'red block', 'green block','yellow block']
+ALL_BOWLS = ['blue bowl', 'yellow bowl', 'brown bowl', 'gray bowl']
+
 
 PIXEL_SIZE = 0.00267857
 BOUNDS = np.float32([[-0.3, 0.3], [-0.8, -0.2], [0, 0.15]])  # X Y Z
@@ -950,8 +954,8 @@ class LMP_wrapper():
 
 
 #@title Initialize Env { vertical-output: true }
-num_blocks = 3 #@param {type:"slider", min:0, max:4, step:1}
-num_bowls = 3 #@param {type:"slider", min:0, max:4, step:1}
+num_blocks = 4 #@param {type:"slider", min:0, max:4, step:1}
+num_bowls = 4 #@param {type:"slider", min:0, max:4, step:1}
 high_resolution = False #@param {type:"boolean"}
 high_frame_rate = False #@param {type:"boolean"}
 
@@ -964,11 +968,12 @@ _ = env.reset(obj_list)
 # lmp_tabletop_ui = setup_LMP(env, cfg_tabletop)
 rng = np.random.default_rng()
 
-for i in range(1000):
-  act = {'pick': np.float32([rng.random(), rng.random(),rng.random()]), 'place': np.float32([rng.random(),rng.random(),rng.random()])}
-  rng = np.random.default_rng()
-  env.step(act)
+print("get obj pose:", env.get_obj_pos('yellow block'))
+print("get obj pose:", env.get_obj_pos('yellow bowl'))
 
+for i in range(1):
+  act = {'pick': env.get_obj_pos('yellow block'), 'place': env.get_obj_pos('yellow bowl')}
+  env.step(act)
 
 # display env
 img = cv2.cvtColor(env.get_camera_image(), cv2.COLOR_BGR2RGB)
