@@ -155,7 +155,7 @@ class PushEnv():
 
   def step(self, action=None):
     """Do pick and place motion primitive."""
-    obj_pos, destination_pos = action['obj'].copy(), action['destination'].copy()
+    obj_pos, destination_pos = action['push'].copy(), action['to'].copy()
     # print(f'Distance between obj and dest: {np.linalg.norm(destination_pos-obj_pos)}')
 
     direction = destination_pos - obj_pos

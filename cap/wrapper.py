@@ -132,3 +132,11 @@ class LMP_wrapper():
     side_positions = self.get_side_positions()
     side_idx = np.argmin(np.linalg.norm(side_positions - pos, axis=1))
     return ['top side', 'right side', 'bottom side', 'left side'][side_idx]
+  
+  def get_obj_id(self, obj_name):
+    return self.env.get_obj_id(obj_name) 
+  
+  def is_close_to(self, obj_a, obj_b):
+    obj_a_pos = self.get_obj_pos(obj_a)
+    obj_b_pos = self.get_obj_pos(obj_b)
+    return np.linalg.norm(obj_a_pos[:2] - obj_b_pos[:2]) < 0.01

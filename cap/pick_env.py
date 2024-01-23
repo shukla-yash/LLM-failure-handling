@@ -474,11 +474,6 @@ class PickPlaceEnv():
       is_near = xy_dist < 0.04
       is_higher = obj_a_pos[2] > obj_b_pos[2]
       return is_near and is_higher
-
-  def close_to(self, obj_a, obj_b):
-    obj_a_pos = self.get_obj_pos(obj_a)
-    obj_b_pos = self.get_obj_pos(obj_b)
-    return np.linalg.norm(obj_a_pos[:2] - obj_b_pos[:2]) < 0.01
   
   def get_obj_id(self, obj_name):
     print(f'looking for {obj_name}')
