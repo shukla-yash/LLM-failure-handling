@@ -12,15 +12,28 @@ class LMP_interface:
         return self._env.get_ee_pos()
     
     def detect(self, obj_name, threshold=50):
+        obj_id = self.env.obj_name_to_id[obj_name]
         seg_image = self._env.get_seg_image()
-        print(seg_image)
+        # print(seg_image)
         height, width = seg_image.shape
         obj_pixels = 0
         for i in range(height):
             for j in range(width):
-                obj_id = seg_image[i][j]
-                if obj_id != -1:
+                # obj_id = seg_image[i][j]
+                if obj_id == seg_image[i][j]:
                     obj_pixels += 1
         return obj_pixels >= threshold
     
-    def pick
+    def pick(self, obj_name):
+        pass 
+
+    def place(self, pos_name):
+        pass 
+
+    def pick_and_place(self, obj_name, pos_name):
+        # DO SOMETHING HERE
+        return self._env.on_top_of(obj_name, pos_name)
+
+    def push(self, obj_name, pos_name):
+        # DO SOMETHING HERE
+        return self._env.close_to(obj_name, pos_name)

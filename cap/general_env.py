@@ -151,7 +151,13 @@ class GeneralEnv():
     return ee_xyz
 
   def step(self, action=None):
-    """Perform action according to the dict"""
+    """
+    Perform action according to the dict
+
+    Valid actions:
+      pick obj_a place obj_b/pos_b
+      push obj_a to obj_b/pos_b
+    """
     speed = 1.
     if 'speed' in action.keys():
         speed = action['speed']
