@@ -56,11 +56,38 @@ class LMP_interface(LMPenv):
                 return True 
         return False
 
-    def place(self, pos_name):
-        if pos_name in CORNER_POS.keys():
-            obj_pos = CORNER_POS[pos_name]
+    def place(self, obj_name, dest_name):
+        if not self.is_obj_visible(obj_name):
+            return False # Unknown object
+        if not dest_name in CORNER_POS and not self.is_obj_visible(dest_name):
+            return False # Unknown destination
+        # Check whether obj is already being held
+        obj_id = self.get_obj_id(obj_name)
+        gripper_id = self.env.tip_link_id
+        gripper_link_ids = self.env.gripper.body 
+        contacts = pybullet.getContactPoints(gripper_id, obj_id)
+        is_holding = False
+        for c in contacts:
+            if c[3] in gripper_link_ids:
+                is_holding = True
+        if not is_holding:
+            return False # Pick up the object first
+
+        if dest_name in CORNER_POS.keys():
+            obj_pos = CORNER_POS[dest_name]
         else:
-            obj_pos = self.get_obj_pos_np(pos_name)
+            obj_pos = self.get_obj_pos_np(dest_name)
+
+        action = {
+            'place': obj_pos,
+        }
+        self.env.step(action)
+
+        if not dest_name in CORNER_POS.keys():
+            return self.is_close_to(obj_name, dest_name)
+        else:
+            obj_pos = self.get_obj_pos_np(obj_name)
+            return np.linalg.norm(obj_pos-to_pos) < 0.1
 
     def pick_and_place(self, obj_name, pos_name):
         raise NotImplementedError # Use pick and place seperately
