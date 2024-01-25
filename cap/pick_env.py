@@ -277,6 +277,45 @@ class PickPlaceEnv():
     observation["xyzmap"] = xyzmap
 
     return observation
+  
+  def get_seg_image(self, image_size=(720, 720), intrinsics=(360., 0, 360., 0, 360., 360., 0, 0, 1)):
+    # Camera parameters.
+    position = (0, -0.85, 0.4)
+    orientation = (np.pi / 4 + np.pi / 48, np.pi, np.pi)
+    orientation = pybullet.getQuaternionFromEuler(orientation)
+    zrange = (0.01, 10.)
+    noise=True
+
+    # OpenGL camera settings.
+    lookdir = np.float32([0, 0, 1]).reshape(3, 1)
+    updir = np.float32([0, -1, 0]).reshape(3, 1)
+    rotation = pybullet.getMatrixFromQuaternion(orientation)
+    rotm = np.float32(rotation).reshape(3, 3)
+    lookdir = (rotm @ lookdir).reshape(-1)
+    updir = (rotm @ updir).reshape(-1)
+    lookat = position + lookdir
+    focal_len = intrinsics[0]
+    znear, zfar = (0.01, 10.)
+    viewm = pybullet.computeViewMatrix(position, lookat, updir)
+    fovh = (image_size[0] / 2) / focal_len
+    fovh = 180 * np.arctan(fovh) * 2 / np.pi
+
+    # Notes: 1) FOV is vertical FOV 2) aspect must be float
+    aspect_ratio = image_size[1] / image_size[0]
+    projm = pybullet.computeProjectionMatrixFOV(fovh, aspect_ratio, znear, zfar)
+
+    # Render with OpenGL camera settings.
+    _, _, _, _, seg_img = pybullet.getCameraImage(
+        width=image_size[1],
+        height=image_size[0],
+        viewMatrix=viewm,
+        projectionMatrix=projm,
+        shadow=1,
+        flags=pybullet.ER_SEGMENTATION_MASK_OBJECT_AND_LINKINDEX,
+        renderer=pybullet.ER_BULLET_HARDWARE_OPENGL)
+
+    intrinsics = np.float32(intrinsics).reshape(3, 3)
+    return seg_img, position, orientation, intrinsics
 
   def render_image(self, image_size=(720, 720), intrinsics=(360., 0, 360., 0, 360., 360., 0, 0, 1)):
 

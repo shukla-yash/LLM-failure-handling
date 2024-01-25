@@ -1,11 +1,7 @@
 import os
 import pybullet
 import pybullet_data
-import numpy as np
-import threading
-import copy
-import openai
-import cv2
+import numpy as npbash
 from moviepy.editor import ImageSequenceClip
 import imageio
 
@@ -20,21 +16,22 @@ from pygments.formatters import TerminalFormatter
 
 # Gym-style environment code
 
-class PushEnv():
+class GeneralEnv():
 
-  def __init__(self, render=False, high_res=False, high_frame_rate=False, test=True):
+  def __init__(self, render=False, high_res=False, high_frame_rate=False, test=False):
     self.dt = 1/480
     self.sim_step = 0
 
     # Configure and start PyBullet.
     # python3 -m pybullet_utils.runServer
     # pybullet.connect(pybullet.SHARED_MEMORY)  # pybullet.GUI for local GUI.
+
     if test:
       pybullet.connect(pybullet.GUI)
     else:
-      pybullet.connect(pybullet.DIRECT)
+      pybullet.connect(pybullet.DIRECT)  # pybullet.GUI for local GUI.
 
-    # pybullet.connect(pybullet.DIRECT)  # pybullet.GUI for local GUI.
+
     pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_GUI, 0)
     pybullet.setPhysicsEngineParameter(enableFileCaching=0)
     assets_path = os.path.dirname(os.path.abspath(""))
@@ -154,109 +151,83 @@ class PushEnv():
     return ee_xyz
 
   def step(self, action=None):
-    """Do pick and place motion primitive."""
-    obj_pos, destination_pos = action['push'].copy(), action['to'].copy()
-    # print(f'Distance between obj and dest: {np.linalg.norm(destination_pos-obj_pos)}')
+    """
+    Perform action according to the dict
 
-    direction = destination_pos - obj_pos
-    threshold = 0.1
-
-    hover_height = 0.2
-    push_height = 0.025
+    Valid actions:
+      pick obj_a place obj_b/pos_b
+      push obj_a to obj_b/pos_b
+    """
+    speed = 1.
+    if 'speed' in action.keys():
+        speed = action['speed']
+    
+    if 'pick' in action.keys():
+        pick_pos, place_pos = action['pick'].copy(), action['place'].copy()
 
     # Set fixed primitive z-heights.
-    hover_xyz = np.float32([obj_pos[0]-direction[0]*threshold, obj_pos[1]-direction[1]*threshold, hover_height])
-    if obj_pos.shape[-1] == 2:
-      push_xyz = np.append(obj_pos, push_height)
+    hover_xyz = np.float32([pick_pos[0], pick_pos[1], 0.2])
+    if pick_pos.shape[-1] == 2:
+      pick_xyz = np.append(pick_pos, 0.025)
     else:
-      push_xyz = obj_pos
-      push_xyz[2] = push_height
-
-    push_xyz[0] -= direction[0]*threshold
-    push_xyz[1] -= direction[1]*threshold
-
-    if destination_pos.shape[-1] == 2:
-      destination_xyz = np.append(destination_pos, push_height)
+      pick_xyz = pick_pos
+      pick_xyz[2] = 0.025
+    if place_pos.shape[-1] == 2:
+      place_xyz = np.append(place_pos, 0.15)
     else:
-      destination_xyz = destination_pos
-      destination_xyz[2] = push_height
+      place_xyz = place_pos
+      place_xyz[2] = 0.15
 
-    # destination_xyz[0] -= direction[0]
-    # destination_xyz[1] -= direction[1]
-
-    print(f'destination_xyz: {destination_xyz}')
-    print(f'push_xyz: {push_xyz}')
-    print(f'Distance between obj and dest: {np.linalg.norm(destination_xyz-push_xyz, np.inf)}')
     # Move to object.
-    # print('Moving to object.')
     ee_xyz = self.get_ee_pos()
-
-    self.gripper.activate()
-    for _ in range(240):
-      self.step_sim_and_render()
-
     while np.linalg.norm(hover_xyz - ee_xyz) > 0.01:
       self.movep(hover_xyz)
       self.step_sim_and_render()
       ee_xyz = self.get_ee_pos()
 
-    while np.linalg.norm(push_xyz - ee_xyz) > 0.01:
-      # print(f'distance to object: {np.linalg.norm(push_xyz - ee_xyz)}')
-      self.movep(push_xyz)
+    while np.linalg.norm(pick_xyz - ee_xyz) > 0.01:
+      self.movep(pick_xyz)
       self.step_sim_and_render()
       ee_xyz = self.get_ee_pos()
 
     # Pick up object.
-    # self.gripper.activate()
-    # for _ in range(240):
-    #   self.step_sim_and_render()
-    # while np.linalg.norm(hover_xyz - ee_xyz) > 0.01:
-    #   self.movep(hover_xyz)
-    #   self.step_sim_and_render()
-    #   ee_xyz = self.get_ee_pos()
+    self.gripper.activate()
+    for _ in range(240):
+      self.step_sim_and_render()
+    while np.linalg.norm(hover_xyz - ee_xyz) > 0.01:
+      self.movep(hover_xyz)
+      self.step_sim_and_render()
+      ee_xyz = self.get_ee_pos()
     
-    # for _ in range(5000):
-    #   self.step_sim_and_render()
+    for _ in range(50):
+      self.step_sim_and_render()
     
     # Move to place location.
-    while np.linalg.norm(destination_xyz - ee_xyz) > 0.01:
-      # print(f'distance to destination: {np.linalg.norm(destination_xyz - ee_xyz)}')
-      tmp_dir =  ee_xyz+threshold*direction*1000
-      self.movep(destination_xyz)
-      for _ in range(50):
-        self.step_sim_and_render()
-      ee_xyz = self.get_ee_pos()
-
-    finish_xyz = destination_xyz
-    finish_xyz[2] = hover_height
-    while np.linalg.norm(finish_xyz-ee_xyz) > 0.01:
-      self.movep(finish_xyz)
+    while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
+      self.movep(place_xyz)
       self.step_sim_and_render()
       ee_xyz = self.get_ee_pos()
-    self.gripper.release()
-    for  _ in range(250):
-      self.step_sim_and_render()
 
     # Place down object.
-    # while (not self.gripper.detect_contact()) and (place_xyz[2] > 0.03):
-    #   place_xyz[2] -= 0.001
-    #   self.movep(place_xyz)
-    #   for _ in range(3):
-    #     self.step_sim_and_render()
-    # self.gripper.release()
-    # for _ in range(240):
-    #   self.step_sim_and_render()
-    # place_xyz[2] = 0.2
-    # ee_xyz = self.get_ee_pos()
-    # while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
-    #   self.movep(place_xyz)
-    #   self.step_sim_and_render()
-    #   ee_xyz = self.get_ee_pos()
-    # place_xyz = np.float32([0, -0.5, 0.2])
-    # while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
-    #   self.movep(place_xyz)
-    #   self.step_sim_and_render()
-    #   ee_xyz = self.get_ee_pos()
+    while (not self.gripper.detect_contact()) and (place_xyz[2] > 0.03):
+      place_xyz[2] -= 0.001
+      self.movep(place_xyz)
+      for _ in range(3):
+        self.step_sim_and_render()
+    self.gripper.release()
+    for _ in range(240):
+      self.step_sim_and_render()
+    place_xyz[2] = 0.2
+    ee_xyz = self.get_ee_pos()
+    while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
+      self.movep(place_xyz)
+      self.step_sim_and_render()
+      ee_xyz = self.get_ee_pos()
+    place_xyz = np.float32([0, -0.5, 0.2])
+    while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
+      self.movep(place_xyz)
+      self.step_sim_and_render()
+      ee_xyz = self.get_ee_pos()
 
     observation = self.get_observation()
     reward = self.get_reward()
@@ -477,6 +448,7 @@ class PushEnv():
       return is_near and is_higher
   
   def get_obj_id(self, obj_name):
+    print(f'looking for {obj_name}')
     try:
       if obj_name in self.obj_name_to_id:
         obj_id = self.obj_name_to_id[obj_name]
@@ -501,6 +473,6 @@ class PushEnv():
   def get_bounding_box(self, obj_name):
     obj_id = self.get_obj_id(obj_name)
     return pybullet.getAABB(obj_id)
-     
+    
   def save_video(self, path):
     imageio.mimsave(path, self.cache_video)

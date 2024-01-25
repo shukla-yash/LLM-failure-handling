@@ -22,6 +22,7 @@ from shapely.affinity import *
 from pygments import highlight
 from pygments.lexers import PythonLexer
 from pygments.formatters import TerminalFormatter
+from interface import LMP_interface
 
 
 def setup_LMP(env, cfg_tabletop):
@@ -30,7 +31,8 @@ def setup_LMP(env, cfg_tabletop):
   cfg_tabletop['env'] = dict()
   cfg_tabletop['env']['init_objs'] = list(env.obj_name_to_id.keys())
   cfg_tabletop['env']['coords'] = lmp_tabletop_coords
-  LMP_env = LMP_wrapper(env, cfg_tabletop)
+#   wrapper = LMP_wrapper(env, cfg_tabletop)
+  LMP_env = LMP_interface(env, cfg_tabletop)
   # creating APIs that the LMPs can interact with
   fixed_vars = {
       'np': np
