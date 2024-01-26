@@ -1,11 +1,11 @@
 from lmp import LMP, LMPFGen
 import numpy as np 
 import pybullet
-from wrapper import LMPenv
+from wrapper import LMP_wrapper
 from constants import *
 
 
-class LMP_interface(LMPenv):
+class LMP_interface(LMP_wrapper):
 
     def __init__(self, env, lmp_config, render=False):
         super().__init__(env, lmp_config, render=render)
@@ -61,6 +61,7 @@ class LMP_interface(LMPenv):
             return False # Unknown object
         if not dest_name in CORNER_POS and not self.is_obj_visible(dest_name):
             return False # Unknown destination
+        
         # Check whether obj is already being held
         obj_id = self.get_obj_id(obj_name)
         gripper_id = self.env.tip_link_id
@@ -74,9 +75,9 @@ class LMP_interface(LMPenv):
             return False # Pick up the object first
 
         if dest_name in CORNER_POS.keys():
-            obj_pos = CORNER_POS[dest_name]
+            to_pos = CORNER_POS[dest_name]
         else:
-            obj_pos = self.get_obj_pos_np(dest_name)
+            to_pos = self.get_obj_pos_np(dest_name)
 
         action = {
             'place': obj_pos,
