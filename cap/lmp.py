@@ -9,7 +9,7 @@ from pygments import highlight
 from pygments.lexers import PythonLexer
 from pygments.formatters import TerminalFormatter
 
-openai.api_key = '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'
+openai.api_key = ''
 
 
 class LMP:
