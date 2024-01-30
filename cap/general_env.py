@@ -155,8 +155,11 @@ class GeneralEnv():
     Perform action according to the dict
 
     Valid actions:
-      pick obj_a place obj_b/pos_b
-      push obj_a to obj_b/pos_b
+      : pick obj_a 
+      : place obj_b, pos_b
+      : push obj_a, obj_b/pos_b
+    Parameters:
+      : speed
     """
     speed = 1.
     if 'speed' in action.keys():
