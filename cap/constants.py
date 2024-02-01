@@ -32,4 +32,16 @@ ALL_BOWLS = ['blue bowl', 'red bowl', 'green bowl', 'orange bowl', 'yellow bowl'
 
 PIXEL_SIZE = 0.00267857
 BOUNDS = np.float32([[-0.3, 0.3], [-0.8, -0.2], [0, 0.15]])  # X Y Z
-     
+
+lmp_tabletop_coords = {
+        'top_left':     (-0.3 + 0.05, -0.2 - 0.05),
+        'top_side':     (0,           -0.2 - 0.05),
+        'top_right':    (0.3 - 0.05,  -0.2 - 0.05),
+        'left_side':    (-0.3 + 0.05, -0.5,      ),
+        'middle':       (0,           -0.5,      ),
+        'right_side':   (0.3 - 0.05,  -0.5,      ),
+        'bottom_left':  (-0.3 + 0.05, -0.8 + 0.05),
+        'bottom_side':  (0,           -0.8 + 0.05),
+        'bottom_right': (0.3 - 0.05,  -0.8 + 0.05),
+        'table_z':       0.0,
+      }

@@ -16,6 +16,7 @@ from time import sleep
 from constants import *
 from wrapper import LMP_wrapper
 from lmp import *
+import shapely
 from shapely.geometry import *
 from shapely.affinity import *
 # from openai.error import RateLimitError, APIConnectionError
@@ -23,6 +24,15 @@ from pygments import highlight
 from pygments.lexers import PythonLexer
 from pygments.formatters import TerminalFormatter
 from interface import LMP_interface
+
+
+model_name = 'gpt-3.5-turbo'
+api_key = None
+
+
+def setup_openai(name, key):
+  model_name = name 
+  api_key = key
 
 
 def setup_LMP(env, cfg_tabletop):
@@ -62,7 +72,32 @@ def setup_LMP(env, cfg_tabletop):
 
   # creating the LMP that deals w/ high-level language commands
   lmp_tabletop_ui = LMP(
-      'tabletop_ui', cfg_tabletop['lmps']['tabletop_ui'], lmp_fgen, fixed_vars, variable_vars
+      'table_ui', cfg_tabletop['lmps']['table_ui'], lmp_fgen, fixed_vars, variable_vars
   )
 
   return lmp_tabletop_ui
+
+def build_cfg(keys, prompts):
+  assert len(keys) == len(prompts)
+  cfg = {}
+  tabletop_cfg = {}
+  for i, k in enumerate(keys):
+    # print(k, i)
+    with open('prompts/{}.txt'.format(prompts[i]), 'r') as f:
+      prompt = f.read().strip() 
+    cfg[k] = {
+      'prompt_text': prompt,
+      'engine': model_name,
+      'max_tokens': 512,
+      'temperature': 0,
+      'query_prefix': '# ',
+      'query_suffix': '.',
+      'stop': ['#'],
+      'maintain_session': False,
+      'debug_mode': False,
+      'include_context': True,
+      'has_return': True,
+      'return_val_name': 'new_shape_pts',
+    }
+  tabletop_cfg['lmps'] = cfg
+  return tabletop_cfg

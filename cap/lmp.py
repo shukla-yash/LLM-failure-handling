@@ -14,6 +14,10 @@ openai.api_key = ''
 
 class LMP:
 
+    '''
+    This LMP is inspired by Code-as-Policies: https://github.com/google-research/google-research/tree/master/code_as_policies
+    '''
+
     def __init__(self, name, cfg, lmp_fgen, fixed_vars, variable_vars):
         self._name = name
         self._cfg = cfg
@@ -54,11 +58,11 @@ class LMP:
 
         while True:
             try:
-                code_str = openai.Completion.create(
-                    prompt=prompt,
+                code_str = openai.ChatCompletion.create(
+                    messages=prompt,
                     stop=self._stop_tokens,
                     temperature=self._cfg['temperature'],
-                    engine=self._cfg['engine'],
+                    model=self._cfg['engine'],
                     max_tokens=self._cfg['max_tokens']
                 )['choices'][0]['text'].strip()
                 break
@@ -114,11 +118,11 @@ class LMPFGen:
 
         while True:
             try:
-                f_src = openai.Completion.create(
-                    prompt=prompt, 
+                f_src = openai.ChatCompletion.create(
+                    messages=prompt, 
                     stop=self._stop_tokens,
                     temperature=self._cfg['temperature'],
-                    engine=self._cfg['engine'],
+                    model=self._cfg['engine'],
                     max_tokens=self._cfg['max_tokens']
                 )['choices'][0]['text'].strip()
                 break
