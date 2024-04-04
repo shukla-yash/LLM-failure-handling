@@ -7,6 +7,7 @@ import imageio
 
 from pick_env import PickPlaceEnv
 from push_env import PushEnv
+from general_env import GeneralEnv
 from constants import *
 
 
@@ -23,6 +24,8 @@ args = parser.parse_args()
 # # setup env and LMP
 if args.environment == 'push':
   env = PushEnv(render=True, high_res=high_resolution, high_frame_rate=high_frame_rate, test=True)
+elif args.environment == 'general':
+  env = GeneralEnv(render=True, high_res=high_resolution, high_frame_rate=high_frame_rate)
 else:
   env = PickPlaceEnv(render=True, high_res=high_resolution, high_frame_rate=high_frame_rate)
 block_list = np.random.choice(ALL_BLOCKS, size=num_blocks, replace=False).tolist()
