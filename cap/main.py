@@ -3,7 +3,7 @@ from interface import LMP_interface
 from utils import * 
 
 
-openai.api_key = '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'
+openai.api_key = ''
 num_blocks = 2
 num_bowls = 1 
 high_resolution = False
