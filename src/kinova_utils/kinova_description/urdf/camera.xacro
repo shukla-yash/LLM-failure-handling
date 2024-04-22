@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+
+<robot name="gen3_lite_gen3_lite_2f" xmlns:xacro="http://ros.org/wiki/xacro">
+    <!-- Include -->
+    <xacro:include filename="$(find realsense2_description)/urdf/_d435.urdf.xacro" />
+    <xacro:property name="M_PI" value="3.1415926535897931" />
+
+    <xacro:sensor_d435 name="camera" parent="base_link" use_nominal_extrinsics="true">
+        <!-- <origin xyz="0 2 0.5" rpy="0 ${M_PI/4} 0"/> -->
+        <origin xyz="0 2 0.5" rpy="${M_PI/4} ${M_PI/4} ${M_PI/4}"/>
+
+    </xacro:sensor_d435>
+
+
+    <link name="base_link">
+        <visual>
+            <!-- <origin rpy="1 1 1" xyz="0 0 0" /> -->
+            <origin rpy="0 0 0" xyz="10 0 0" />
+        </visual>
+    </link>
+
+</robot>

@@ -1,0 +1,3 @@
+string object_string
+---
+geometry_msgs/PoseStamped pose_stamped
