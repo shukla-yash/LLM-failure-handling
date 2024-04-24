@@ -69,3 +69,16 @@ Wed Apr 17 17:09:17 2024
 
 4. In ros service; sometimes the code just fails:
 rerun the client
+
+
+TO DO:
+
+1. Add table in the URDF so that the robot does not hit the table
+2. Add the camera pole in the URDF so that the robot does not hit the pole
+3. Figure out why the pose sometimes is incorrect
+4. Sometimes the server cannot find the object - it returns an error and everthing stops. Write an exception to catch the error and report the error
+5. Clean the code (add comments)
+6. Do pick and place using human generated NL (pick up the blue can; place in the orange bowl)
+
+May 10 / May 15 
+
