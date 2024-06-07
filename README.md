@@ -41,6 +41,9 @@ Visualize the poses in rviz
 `rosrun kortex_examples example_single_point.py `
 
 
+## Shells 
+
+In new terminals under base conda environment, directly bash shell files will enter the corresponding conda environment and move to ~/catkin/ directory.
 
 Few common errors:
 
