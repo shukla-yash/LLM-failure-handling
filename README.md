@@ -45,7 +45,7 @@ Visualize the poses in rviz
 
 In new terminals under base conda environment, directly bash shell files will enter the corresponding conda environment and move to ~/catkin/ directory.
 
-Few common errors:
+# Few common errors:
 
 1. CUDA out of memory: python processes did not die gracefully
 solution: `sudo pkill -9 python`
@@ -74,7 +74,7 @@ Wed Apr 17 17:09:17 2024
 rerun the client
 
 
-TO DO:
+# TO DO:
 
 1. Add table in the URDF so that the robot does not hit the table
 2. Add the camera pole in the URDF so that the robot does not hit the pole
@@ -82,6 +82,4 @@ TO DO:
 4. Sometimes the server cannot find the object - it returns an error and everthing stops. Write an exception to catch the error and report the error
 5. Clean the code (add comments)
 6. Do pick and place using human generated NL (pick up the blue can; place in the orange bowl)
-
-May 10 / May 15 
 
