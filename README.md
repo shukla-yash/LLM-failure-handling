@@ -27,7 +27,19 @@ this will run the client that takes in natural language string
 In another terminal (in ~/catkin/ws after sourcing terminal)
 `$ conda activate kinovaconda`
 
-`python src/realsense_segment2/src/find_grasping_point_server.py`
+Pick - up API client and server:
+
+`python src/realsense_segment2/src/pick_client.py`   (Object of Interest: can)
+
+`python src/realsense_segment2/src/pick_server.py`     
+
+
+Pick and Place API client and server:
+
+`python src/realsense_segment2/src/pick_place_client.py`      (Instruction for arm: pick can or place can)
+
+`python src/realsense_segment2/src/pick_place_server.py`
+
 
 
 In kinova movement example code;
