@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+
+<robot name="table"> 
+    <link name="table_base">
+        <visual>
+            <geometry>
+                <box size="1.0 2.0 0.1"/>
+            </geometry>
+            <material name="wood">
+                <color rgba="1.0 1.0 1.0 1.0"/>
+            </material>
+        </visual>
+        <collision>
+            <geometry>
+                <box="1.0 2.0 0.1"/>
+            </geometry>
+        </collision>
+    </link> 
+
+    <link name="pole">
+        <visual> 
+            <geometry>
+                <cylinder radius="0.05" length="0.595"/> 
+            </geometry>
+            <material name="metal"> 
+                <color rgba="0 0 0 1">
+            </material>
+        </visual> 
+        <collision>
+            <geometry>
+                <cylinder radius="0.05" length="2.0">
+            </geometry>
+        </collision>
+    </link>
+
+
+    <joint name="table_joint" type="fixed">
+        <parent link="world"/>
+        <child link="table_base"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint> 
+
+    <joint name="pole_joint" type="fixed"> 
+        <parent link="table_base"/> 
+        <child link="pole"/>
+        <origin xyz="0.58 0.26 0" rpy="0 0 0"/>
+    </joint>
+
+</robot>

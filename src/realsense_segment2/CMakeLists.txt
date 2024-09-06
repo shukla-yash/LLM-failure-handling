@@ -67,6 +67,7 @@ add_service_files(
   FILES
   AddTwoInts.srv
   FindGraspingPoint.srv
+  FindPlacingPoint.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -80,7 +81,7 @@ add_service_files(
 generate_messages(
   DEPENDENCIES
   sensor_msgs
-  geometry_msgs#   std_msgs
+  geometry_msgs #   std_msgs
   visualization_msgs
   )
 
@@ -203,11 +204,19 @@ catkin_install_python(PROGRAMS src/add_two_ints_client.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-catkin_install_python(PROGRAMS src/find_grasping_point_server.py
+catkin_install_python(PROGRAMS src/pick_place_client.py
+DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+catkin_install_python(PROGRAMS src/pick_place_server.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-catkin_install_python(PROGRAMS src/find_grasping_point_client.py
+catkin_install_python(PROGRAMS src/pick_server.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+catkin_install_python(PROGRAMS src/pick_client.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
