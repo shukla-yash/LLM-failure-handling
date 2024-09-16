@@ -1,110 +1,51 @@
-#@markdown 
-
-# !pip install ftfy regex tqdm fvcore imageio==2.4.1 imageio-ffmpeg==0.4.5
-# !pip install git+https://github.com/openai/CLIP.git
-# !pip install -U --no-cache-dir gdown --pre
-# !pip install pybullet moviepy
-# !pip install flax==0.5.3
-# !pip install openai
-# !pip install easydict
-# !pip install imageio-ffmpeg
-# !pip install tensorflow==2.7.0  # If error: UNIMPLEMENTED: DNN library is not found.
-
-import collections
-import datetime
 import os
-import random
-import threading
-import time
-
-import cv2  # Used by ViLD.
-import clip
-from easydict import EasyDict
-import flax
-from flax import linen as nn
-# from flax.training import checkpoints
-# from flax.metrics import tensorboard
-import imageio
-from heapq import nlargest
-import IPython
-import jax
-import jax.numpy as jnp
-import matplotlib.pyplot as plt
-from moviepy.editor import ImageSequenceClip
-import numpy as np
-import openai
-import optax
-import pickle
-from PIL import Image
 import pybullet
 import pybullet_data
-# import tensorflow.compat.v1 as tf
-import torch
-from tqdm import tqdm
-
-# #Download PyBullet assets.
-# if not os.path.exists('ur5e/ur5e.urdf'):
-#   !gdown --id 1Cc_fDSBL6QiDvNT4dpfAEbhbALSVoWcc
-#   !gdown --id 1yOMEm-Zp_DL3nItG9RozPeJAmeOldekX
-#   !gdown --id 1GsqNLhEl9dd4Mc3BM0dX3MibOI1FVWNM
-#   !unzip ur5e.zip
-#   !unzip robotiq_2f_85.zip
-#   !unzip bowl.zip
-
-# # ViLD pretrained model weights.
-# !gsutil cp -r gs://cloud-tpu-checkpoints/detection/projects/vild/colab/image_path_v2 ./
-
-# %load_ext tensorboard
-
-# openai.api_key = openai_api_key
-
-# # Show useful GPU info.
-# # !nvidia-smi
-
-# # Show if JAX is using GPU.
-# from jax.lib import xla_bridge
-# print(xla_bridge.get_backend().platform)
-
-
-#@markdown Global constants: pick and place objects, colors, workspace bounds
-
-PICK_TARGETS = {
-  "blue block": None,
-  "red block": None,
-  "green block": None,
-  "yellow block": None,
-}
-
+import numpy as np
+import threading
+import copy
+import cv2
+from time import sleep
+    
+# # Global constants: pick and place objects, colors, workspace bounds
 COLORS = {
-    "blue":   (78/255,  121/255, 167/255, 255/255),
-    "red":    (255/255,  87/255,  89/255, 255/255),
-    "green":  (89/255,  169/255,  79/255, 255/255),
-    "yellow": (237/255, 201/255,  72/255, 255/255),
+    'blue':   (78/255,  121/255, 167/255, 255/255),
+    'red':    (255/255,  87/255,  89/255, 255/255),
+    'green':  (89/255,  169/255,  79/255, 255/255),
+    'orange': (242/255, 142/255,  43/255, 255/255),
+    'yellow': (237/255, 201/255,  72/255, 255/255),
+    'purple': (176/255, 122/255, 161/255, 255/255),
+    'pink':   (255/255, 157/255, 167/255, 255/255),
+    'cyan':   (118/255, 183/255, 178/255, 255/255),
+    'brown':  (156/255, 117/255,  95/255, 255/255),
+    'gray':   (186/255, 176/255, 172/255, 255/255),
 }
 
-PLACE_TARGETS = {
-  "blue block": None,
-  "red block": None,
-  "green block": None,
-  "yellow block": None,
-
-  "blue bowl": None,
-  "red bowl": None,
-  "green bowl": None,
-  "yellow bowl": None,
-
-  "top left corner":     (-0.3 + 0.05, -0.2 - 0.05, 0),
-  "top right corner":    (0.3 - 0.05,  -0.2 - 0.05, 0),
-  "middle":              (0,           -0.5,        0),
-  "bottom left corner":  (-0.3 + 0.05, -0.8 + 0.05, 0),
-  "bottom right corner": (0.3 - 0.05,  -0.8 + 0.05, 0),
+CORNER_POS = {
+  'top left corner':     (-0.3 + 0.05, -0.2 - 0.05, 0),
+  'top side':            (0,           -0.2 - 0.05, 0),
+  'top right corner':    (0.3 - 0.05,  -0.2 - 0.05, 0),
+  'left side':           (-0.3 + 0.05, -0.5,        0),
+  'middle':              (0,           -0.5,        0),
+  'right side':          (0.3 - 0.05,  -0.5,        0),
+  'bottom left corner':  (-0.3 + 0.05, -0.8 + 0.05, 0),
+  'bottom side':         (0,           -0.8 + 0.05, 0),
+  'bottom right corner': (0.3 - 0.05,  -0.8 + 0.05, 0),
 }
+
+# ALL_BLOCKS = ['blue block', 'red block', 'green block', 'orange block', 'yellow block', 'purple block', 'pink block', 'cyan block', 'brown block', 'gray block']
+# ALL_BOWLS = ['blue bowl', 'red bowl', 'green bowl', 'orange bowl', 'yellow bowl', 'purple bowl', 'pink bowl', 'cyan bowl', 'brown bowl', 'gray bowl']
+
+
+
 
 PIXEL_SIZE = 0.00267857
 BOUNDS = np.float32([[-0.3, 0.3], [-0.8, -0.2], [0, 0.15]])  # X Y Z
 
 
-#@markdown Gripper (Robotiq 2F85) code
+
+
+# Gripper (Robotiq 2F85) code
 
 class Robotiq2F85:
   """Gripper handling for Robotiq 2F85."""
@@ -114,7 +55,7 @@ class Robotiq2F85:
     self.tool = tool
     pos = [0.1339999999999999, -0.49199999999872496, 0.5]
     rot = pybullet.getQuaternionFromEuler([np.pi, 0, np.pi])
-    urdf = "robotiq_2f_85/robotiq_2f_85.urdf"
+    urdf = 'robotiq_2f_85/robotiq_2f_85.urdf'
     self.body = pybullet.loadURDF(urdf, pos, rot)
     self.n_joints = pybullet.getNumJoints(self.body)
     self.activated = False
@@ -143,7 +84,7 @@ class Robotiq2F85:
         pybullet.setJointMotorControlArray(self.body, indj, pybullet.POSITION_CONTROL, targj, positionGains=np.ones(5))
       except:
         return
-      time.sleep(0.001)
+      sleep(0.001)
 
   # Close gripper fingers.
   def activate(self):
@@ -169,6 +110,16 @@ class Robotiq2F85:
   #   else:
   #     return ray_frac < 0.14 or self.external_contact()
 
+  def check_if_gripper_empty(self):
+    if self.activated == False:
+      return True
+    elif self.activated:
+      empty = self.grasp_width() < 0.01
+      if empty:
+        return True
+      else:
+        return False
+
   # Return if body is in contact with something other than gripper
   def external_contact(self, body=None):
     if body is None:
@@ -179,7 +130,7 @@ class Robotiq2F85:
 
   def check_grasp(self):
     while self.moving():
-      time.sleep(0.001)
+      sleep(0.001)
     success = self.grasp_width() > 0.01
     return success
 
@@ -198,12 +149,11 @@ class Robotiq2F85:
     obj, link, ray_frac = ray_data[0], ray_data[1], ray_data[2]
     return obj, link, ray_frac
 
-
-#@markdown Gym-style environment code
+# Gym-style environment code
 
 class PickPlaceEnv():
 
-  def __init__(self):
+  def __init__(self, render=False, high_res=False, high_frame_rate=False):
     self.dt = 1/480
     self.sim_step = 0
 
@@ -212,7 +162,7 @@ class PickPlaceEnv():
     # pybullet.connect(pybullet.SHARED_MEMORY)  # pybullet.GUI for local GUI.
     # pybullet.connect(pybullet.DIRECT)  # pybullet.GUI for local GUI.
     pybullet.connect(pybullet.GUI)  # pybullet.GUI for local GUI.
-
+    
     pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_GUI, 0)
     pybullet.setPhysicsEngineParameter(enableFileCaching=0)
     assets_path = os.path.dirname(os.path.abspath(""))
@@ -226,7 +176,11 @@ class PickPlaceEnv():
     self.tip_link_id = 10  # Link ID of gripper finger tips.
     self.gripper = None
 
-  def reset(self, config):
+    self.render = render
+    self.high_res = high_res
+    self.high_frame_rate = high_frame_rate
+
+  def reset(self, object_list):
     pybullet.resetSimulation(pybullet.RESET_USE_DEFORMABLE_WORLD)
     pybullet.setGravity(0, 0, -9.8)
     self.cache_video = []
@@ -259,12 +213,11 @@ class PickPlaceEnv():
     pybullet.changeVisualShape(plane_id, -1, rgbaColor=[0.2, 0.2, 0.2, 1.0])
 
     # Load objects according to config.
-    self.config = config
+    self.object_list = object_list
     self.obj_name_to_id = {}
-    obj_names = list(self.config["pick"]) + list(self.config["place"])
     obj_xyz = np.zeros((0, 3))
-    for obj_name in obj_names:
-      if ("block" in obj_name) or ("bowl" in obj_name):
+    for obj_name in object_list:
+      if ('block' in obj_name) or ('bowl' in obj_name):
 
         # Get random position 15cm+ from other objects.
         while True:
@@ -280,24 +233,29 @@ class PickPlaceEnv():
               obj_xyz = np.concatenate((obj_xyz, rand_xyz), axis=0)
               break
         
-        object_color = COLORS[obj_name.split(" ")[0]]
-        object_type = obj_name.split(" ")[1]
+        object_color = COLORS[obj_name.split(' ')[0]]
+        object_type = obj_name.split(' ')[1]
         object_position = rand_xyz.squeeze()
-        if object_type == "block":
+        if object_type == 'block':
           object_shape = pybullet.createCollisionShape(pybullet.GEOM_BOX, halfExtents=[0.02, 0.02, 0.02])
           object_visual = pybullet.createVisualShape(pybullet.GEOM_BOX, halfExtents=[0.02, 0.02, 0.02])
           object_id = pybullet.createMultiBody(0.01, object_shape, object_visual, basePosition=object_position)
-        elif object_type == "bowl":
+        elif object_type == 'bowl':
           object_position[2] = 0
           object_id = pybullet.loadURDF("bowl/bowl.urdf", object_position, useFixedBase=1)
         pybullet.changeVisualShape(object_id, -1, rgbaColor=object_color)
         self.obj_name_to_id[obj_name] = object_id
+    
 
     # Re-enable rendering.
     pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_RENDERING, 1)
 
     for _ in range(200):
       pybullet.stepSimulation()
+
+    # record object positions at reset
+    self.init_pos = {name: self.get_obj_pos(name) for name in object_list}
+
     return self.get_observation()
 
   def servoj(self, joints):
@@ -319,25 +277,33 @@ class PickPlaceEnv():
         maxNumIterations=100)
     self.servoj(joints)
 
-  def step(self, action=None):
+  def get_ee_pos(self):
+    ee_xyz = np.float32(pybullet.getLinkState(self.robot_id, self.tip_link_id)[0])
+    return ee_xyz
+
+  def pick(self, obj_to_pick):
     """Do pick and place motion primitive."""
-    pick_xyz, place_xyz = action["pick"].copy(), action["place"].copy()
+    pick_pos = self.get_obj_pos(obj_to_pick).copy()
 
     # Set fixed primitive z-heights.
-    hover_xyz = pick_xyz.copy() + np.float32([0, 0, 0.2])
-    pick_xyz[2] = 0.03
-    place_xyz[2] = 0.15
+    hover_xyz = np.float32([pick_pos[0], pick_pos[1], 0.2])
+    if pick_pos.shape[-1] == 2:
+      pick_xyz = np.append(pick_pos, 0.025)
+    else:
+      pick_xyz = pick_pos
+      pick_xyz[2] = 0.025
 
     # Move to object.
-    ee_xyz = np.float32(pybullet.getLinkState(self.robot_id, self.tip_link_id)[0])
+    ee_xyz = self.get_ee_pos()
     while np.linalg.norm(hover_xyz - ee_xyz) > 0.01:
       self.movep(hover_xyz)
       self.step_sim_and_render()
-      ee_xyz = np.float32(pybullet.getLinkState(self.robot_id, self.tip_link_id)[0])
+      ee_xyz = self.get_ee_pos()
+
     while np.linalg.norm(pick_xyz - ee_xyz) > 0.01:
       self.movep(pick_xyz)
       self.step_sim_and_render()
-      ee_xyz = np.float32(pybullet.getLinkState(self.robot_id, self.tip_link_id)[0])
+      ee_xyz = self.get_ee_pos()
 
     # Pick up object.
     self.gripper.activate()
@@ -346,13 +312,33 @@ class PickPlaceEnv():
     while np.linalg.norm(hover_xyz - ee_xyz) > 0.01:
       self.movep(hover_xyz)
       self.step_sim_and_render()
-      ee_xyz = np.float32(pybullet.getLinkState(self.robot_id, self.tip_link_id)[0])
+      ee_xyz = self.get_ee_pos()
     
+    for _ in range(50):
+      self.step_sim_and_render()
+
+    observation = self.get_observation()
+    reward = self.get_reward()
+    done = False
+    info = {}
+    return observation, reward, done, info
+
+  def place(self, obj_to_place):
+    """Do place motion primitive."""
+    place_pos = self.get_obj_pos(obj_to_place).copy()
+
+    if place_pos.shape[-1] == 2:
+      place_xyz = np.append(place_pos, 0.15)
+    else:
+      place_xyz = place_pos
+      place_xyz[2] = 0.15
+
+    ee_xyz = self.get_ee_pos()
     # Move to place location.
     while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
       self.movep(place_xyz)
       self.step_sim_and_render()
-      ee_xyz = np.float32(pybullet.getLinkState(self.robot_id, self.tip_link_id)[0])
+      ee_xyz = self.get_ee_pos()
 
     # Place down object.
     while (not self.gripper.detect_contact()) and (place_xyz[2] > 0.03):
@@ -364,22 +350,76 @@ class PickPlaceEnv():
     for _ in range(240):
       self.step_sim_and_render()
     place_xyz[2] = 0.2
-    ee_xyz = np.float32(pybullet.getLinkState(self.robot_id, self.tip_link_id)[0])
+    ee_xyz = self.get_ee_pos()
     while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
       self.movep(place_xyz)
       self.step_sim_and_render()
-      ee_xyz = np.float32(pybullet.getLinkState(self.robot_id, self.tip_link_id)[0])
+      ee_xyz = self.get_ee_pos()
     place_xyz = np.float32([0, -0.5, 0.2])
     while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
       self.movep(place_xyz)
       self.step_sim_and_render()
-      ee_xyz = np.float32(pybullet.getLinkState(self.robot_id, self.tip_link_id)[0])
+      ee_xyz = self.get_ee_pos()
 
     observation = self.get_observation()
     reward = self.get_reward()
     done = False
     info = {}
     return observation, reward, done, info
+
+  def putdown(self):
+    obj_pos = []
+    for objs in self.object_list:
+      obj_pos.append(self.get_obj_pos(objs).copy())
+
+    while True:
+      random_empty_pos_candidate = [np.random.uniform(-0.28, 0.28), np.random.uniform(-0.75, -0.25), 0.15]
+      total_objects_far = 0
+      for pos in obj_pos:
+        if abs(random_empty_pos_candidate[0] - pos[0]) > 0.07 and abs(random_empty_pos_candidate[0] - pos[0]) > 0.07:
+          total_objects_far += 1
+      if total_objects_far == len(obj_pos):
+        empty_position = random_empty_pos_candidate.copy()
+        break 
+    place_xyz = empty_position
+    place_xyz[2] = 0.15
+    ee_xyz = self.get_ee_pos()
+    # Move to place location.
+    while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
+      self.movep(place_xyz)
+      self.step_sim_and_render()
+      ee_xyz = self.get_ee_pos()
+    print("4:", self.hand_empty())
+
+    # Place down object.
+    while (not self.gripper.detect_contact()) and (place_xyz[2] > 0.03):
+      place_xyz[2] -= 0.001
+      self.movep(place_xyz)
+      for _ in range(3):
+        self.step_sim_and_render()
+    self.gripper.release()
+    for _ in range(240):
+      self.step_sim_and_render()
+    place_xyz[2] = 0.2
+    ee_xyz = self.get_ee_pos()
+    while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
+      self.movep(place_xyz)
+      self.step_sim_and_render()
+      ee_xyz = self.get_ee_pos()
+    place_xyz = np.float32([0, -0.5, 0.2])
+    while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
+      self.movep(place_xyz)
+      self.step_sim_and_render()
+      ee_xyz = self.get_ee_pos()
+
+    observation = self.get_observation()
+    reward = self.get_reward()
+    done = False
+    info = {}
+    return observation, reward, done, info
+
+    
+        
 
   def set_alpha_transparency(self, alpha: float) -> None:
     for id in range(20):
@@ -396,34 +436,23 @@ class PickPlaceEnv():
     pybullet.stepSimulation()
     self.sim_step += 1
 
+    interval = 40 if self.high_frame_rate else 60
     # Render current image at 8 FPS.
-    if self.sim_step % 60 == 0:
+    if self.sim_step % interval == 0 and self.render:
       self.cache_video.append(self.get_camera_image())
 
   def get_camera_image(self):
-    image_size = (240, 240)
-    intrinsics = (120., 0, 120., 0, 120., 120., 0, 0, 1)
-    color, _, _, _, _ = env.render_image(image_size, intrinsics)
-    return color
-
-  def get_camera_image_top(self, 
-                           image_size=(240, 240), 
-                           intrinsics=(2000., 0, 2000., 0, 2000., 2000., 0, 0, 1),
-                           position=(0, -0.5, 5),
-                           orientation=(0, np.pi, -np.pi / 2),
-                           zrange=(0.01, 1.),
-                           set_alpha=True):
-    set_alpha and self.set_alpha_transparency(0)
-    color, _, _, _, _ = env.render_image_top(image_size, 
-                                             intrinsics,
-                                             position,
-                                             orientation,
-                                             zrange)
-    set_alpha and self.set_alpha_transparency(1)
+    if not self.high_res:
+      image_size = (240, 240)
+      intrinsics = (120., 0, 120., 0, 120., 120., 0, 0, 1)
+    else:
+      image_size=(360, 360)
+      intrinsics=(180., 0, 180., 0, 180., 180., 0, 0, 1)
+    color, _, _, _, _ = self.render_image(image_size, intrinsics)
     return color
 
   def get_reward(self):
-    return 0  # TODO: check did the robot follow text instructions?
+    return None
 
   def get_observation(self):
     observation = {}
@@ -443,8 +472,7 @@ class PickPlaceEnv():
 
     observation["image"] = colormap
     observation["xyzmap"] = xyzmap
-    observation["pick"] = list(self.config["pick"])
-    observation["place"] = list(self.config["place"])
+
     return observation
 
   def render_image(self, image_size=(720, 720), intrinsics=(360., 0, 360., 0, 360., 360., 0, 0, 1)):
@@ -454,65 +482,6 @@ class PickPlaceEnv():
     orientation = (np.pi / 4 + np.pi / 48, np.pi, np.pi)
     orientation = pybullet.getQuaternionFromEuler(orientation)
     zrange = (0.01, 10.)
-    noise=True
-
-    # OpenGL camera settings.
-    lookdir = np.float32([0, 0, 1]).reshape(3, 1)
-    updir = np.float32([0, -1, 0]).reshape(3, 1)
-    rotation = pybullet.getMatrixFromQuaternion(orientation)
-    rotm = np.float32(rotation).reshape(3, 3)
-    lookdir = (rotm @ lookdir).reshape(-1)
-    updir = (rotm @ updir).reshape(-1)
-    lookat = position + lookdir
-    focal_len = intrinsics[0]
-    znear, zfar = (0.01, 10.)
-    viewm = pybullet.computeViewMatrix(position, lookat, updir)
-    fovh = (image_size[0] / 2) / focal_len
-    fovh = 180 * np.arctan(fovh) * 2 / np.pi
-
-    # Notes: 1) FOV is vertical FOV 2) aspect must be float
-    aspect_ratio = image_size[1] / image_size[0]
-    projm = pybullet.computeProjectionMatrixFOV(fovh, aspect_ratio, znear, zfar)
-
-    # Render with OpenGL camera settings.
-    _, _, color, depth, segm = pybullet.getCameraImage(
-        width=image_size[1],
-        height=image_size[0],
-        viewMatrix=viewm,
-        projectionMatrix=projm,
-        shadow=1,
-        flags=pybullet.ER_SEGMENTATION_MASK_OBJECT_AND_LINKINDEX,
-        renderer=pybullet.ER_BULLET_HARDWARE_OPENGL)
-
-    # Get color image.
-    color_image_size = (image_size[0], image_size[1], 4)
-    color = np.array(color, dtype=np.uint8).reshape(color_image_size)
-    color = color[:, :, :3]  # remove alpha channel
-    if noise:
-      color = np.int32(color)
-      color += np.int32(np.random.normal(0, 3, color.shape))
-      color = np.uint8(np.clip(color, 0, 255))
-
-    # Get depth image.
-    depth_image_size = (image_size[0], image_size[1])
-    zbuffer = np.float32(depth).reshape(depth_image_size)
-    depth = (zfar + znear - (2 * zbuffer - 1) * (zfar - znear))
-    depth = (2 * znear * zfar) / depth
-    if noise:
-      depth += np.random.normal(0, 0.003, depth.shape)
-
-    intrinsics = np.float32(intrinsics).reshape(3, 3)
-    return color, depth, position, orientation, intrinsics
-
-  def render_image_top(self, 
-                       image_size=(240, 240), 
-                       intrinsics=(2000., 0, 2000., 0, 2000., 2000., 0, 0, 1),
-                       position=(0, -0.5, 5),
-                       orientation=(0, np.pi, -np.pi / 2),
-                       zrange=(0.01, 1.)):
-
-    # Camera parameters.
-    orientation = pybullet.getQuaternionFromEuler(orientation)
     noise=True
 
     # OpenGL camera settings.
@@ -590,7 +559,7 @@ class PickPlaceEnv():
     """
     padding = ((0, 0), (0, 0), (0, 1))
     homogen_points = np.pad(points.copy(), padding,
-                            "constant", constant_values=1)
+                            'constant', constant_values=1)
     for i in range(3):
       points[Ellipsis, i] = np.sum(transform[i, :] * homogen_points, axis=-1)
     return points
@@ -642,61 +611,74 @@ class PickPlaceEnv():
     xyzmap = xyzmap[::-1, :, :]  # Flip up-down.
     heightmap = heightmap[::-1, :]  # Flip up-down.
     return heightmap, colormap, xyzmap
+  
+  def on_top_of(self, obj_a, obj_b):
+    """
+    check if obj_a is on top of obj_b
+    condition 1: l2 distance on xy plane is less than a threshold
+    condition 2: obj_a is higher than obj_b
+    """
+    obj_a_pos = self.get_obj_pos(obj_a)
+    obj_b_pos = self.get_obj_pos(obj_b)
+    xy_dist = np.linalg.norm(obj_a_pos[:2] - obj_b_pos[:2])
+    if obj_b in CORNER_POS:
+      is_near = xy_dist < 0.06
+      return is_near
+    elif 'bowl' in obj_b:
+      is_near = xy_dist < 0.06
+      is_higher = obj_a_pos[2] > obj_b_pos[2]
+      return is_near and is_higher
+    else:
+      is_near = xy_dist < 0.04
+      is_higher = obj_a_pos[2] > obj_b_pos[2]
+      return is_near and is_higher
 
+  def hand_empty(self):
+    """
+    True if gripper is empty
+    """
+    return self.gripper.check_if_gripper_empty()
 
-#@markdown Initialize environment 
+  def on_table(self, obj_a):
+    """
+    True if obj_a is on table
+    """
+    obj_a_pos = self.get_obj_pos(obj_a)
+    if obj_a_pos[2] < 0.03:
+      return True
+    return False
 
-if 'env' in locals():
-  # Safely exit gripper threading before re-initializing environment.
-  env.gripper.running = False
-  while env.gripper.constraints_thread.isAlive():
-    time.sleep(0.01)
-env = PickPlaceEnv()
+  def clear(self, obj_a):
+    obj_a_pos = self.get_obj_pos(obj_a)
+    for obj_b in self.object_list:
+      is_obj_b_on_top_of_a = self.on_top_of(obj_a = obj_b, obj_b= obj_a)      
+      if is_obj_b_on_top_of_a:
+        return False
+    return True
 
-#@markdown Render images.
+  def get_obj_id(self, obj_name):
+    try:
+      if obj_name in self.obj_name_to_id:
+        obj_id = self.obj_name_to_id[obj_name]
+      else:
+        obj_name = obj_name.replace('circle', 'bowl').replace('square', 'block').replace('small', '').strip()
+        obj_id = self.obj_name_to_id[obj_name]
+    except:
+      print(f'requested_name="{obj_name}"')
+      print(f'available_objects_and_id="{self.obj_name_to_id}')
+    return obj_id
+  
+  def get_obj_pos(self, obj_name):
+    obj_name = obj_name.replace('the', '').replace('_', ' ').strip()
+    if obj_name in CORNER_POS:
+      position = np.float32(np.array(CORNER_POS[obj_name]))
+    else:
+      pick_id = self.get_obj_id(obj_name)
+      pose = pybullet.getBasePositionAndOrientation(pick_id)
+      position = np.float32(pose[0])
+    return position
+  
+  def get_bounding_box(self, obj_name):
+    obj_id = self.get_obj_id(obj_name)
+    return pybullet.getAABB(obj_id)
 
-# Define and reset environment.
-config = {'pick':  ['yellow block', 'green block', 'blue block'],
-          'place': ['yellow bowl', 'green bowl', 'blue bowl']}
-
-np.random.seed(42)
-# obs = env.reset(config)
-
-rng = np.random.default_rng()
-
-# Define and reset environment.
-config = {'pick':  ['yellow block', 'green block', 'blue block'],
-          'place': ['yellow bowl', 'green bowl', 'blue bowl']}
-
-np.random.seed(42)
-obs = env.reset(config)
-# img = env.get_camera_image_top()
-# img = np.flipud(img.transpose(1, 0, 2))
-# plt.title('ViLD Input Image')
-# plt.imshow(img)
-# plt.show()
-# imageio.imwrite('tmp.jpg', img)
-# print("Printed image")
-
-for i in range(1000):
-  act = {'pick': np.float32([rng.random(), rng.random(),rng.random()]), 'place': np.float32([rng.random(),rng.random(),rng.random()])}
-  rng = np.random.default_rng()
-  env.step(act)
-
-# plt.subplot(1, 2, 1)
-# img = env.get_camera_image()
-# plt.title('Perspective side-view')
-# plt.imshow(img)
-# plt.subplot(1, 2, 2)
-# img = env.get_camera_image_top()
-# img = np.flipud(img.transpose(1, 0, 2))
-# plt.title('Orthographic top-view')
-# plt.imshow(img)
-# plt.show()
-
-# # Note: orthographic cameras do not exist. But we can approximate them by
-# # projecting a 3D point cloud from an RGB-D camera, then unprojecting that onto
-# # an orthographic plane. Orthographic views are useful for spatial action maps.
-# plt.title('Unprojected orthographic top-view')
-# plt.imshow(obs['image'])
-# plt.show()

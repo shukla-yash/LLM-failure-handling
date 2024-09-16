@@ -1,10 +1,8 @@
-# LLM-failure-handling
-LLM-failure-handling
-
+# spindl-pybullet
+Pybullet pick and place for spindl
 
 Create env: `conda env create -f environment.yml`
 
-To run code-as-policies **environment**: `python cap-env.py`
+Step 1: Activate conda: `conda activate spindl`
 
-To run say-can **environment**: `python saycan-env.py`
-
+Step 2: Run main: `python main.py`
