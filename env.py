@@ -235,6 +235,7 @@ class PickPlaceEnv():
         
         object_color = COLORS[obj_name.split(' ')[0]]
         object_type = obj_name.split(' ')[1]
+        
         object_position = rand_xyz.squeeze()
         if object_type == 'block':
           object_shape = pybullet.createCollisionShape(pybullet.GEOM_BOX, halfExtents=[0.02, 0.02, 0.02])
@@ -283,15 +284,21 @@ class PickPlaceEnv():
 
   def pick(self, obj_to_pick):
     """Do pick and place motion primitive."""
+
+    if not self.clear(obj_to_pick):
+      print(f"cannot pick as {obj_to_pick} as its not clear")
+      return
+
     pick_pos = self.get_obj_pos(obj_to_pick).copy()
 
+    pick_z = pick_pos[2] + 0.005
     # Set fixed primitive z-heights.
     hover_xyz = np.float32([pick_pos[0], pick_pos[1], 0.2])
     if pick_pos.shape[-1] == 2:
-      pick_xyz = np.append(pick_pos, 0.025)
+      pick_xyz = np.append(pick_pos, pick_z)
     else:
       pick_xyz = pick_pos
-      pick_xyz[2] = 0.025
+      pick_xyz[2] = pick_z
 
     # Move to object.
     ee_xyz = self.get_ee_pos()
