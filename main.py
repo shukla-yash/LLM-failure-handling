@@ -32,11 +32,21 @@ print("is gripper empty: ", env.hand_empty())
 print("obj predicates:", obj_predicates)
 
 # Example to pick up object: (Argument is which object to pick)
-env.pick(block_list[0])  
+success = env.pick(block_list[0])  
+print("pick success: ", success)
 
 # Example to place object: (Argument is where to place. No notion of which object to place because we assume the object is already in hand)
-env.place(block_list[1])  
+success = env.place(block_list[1])  
+print("place success: ", success)
+
+print("is clear block:", env.clear(block_list[1]))
 
 # Example to place block om table: (No arguments. No notion of which object to place because we assume the object is already in hand)
-env.pick(block_list[0])  
+success = env.pick(block_list[0])  
+print("pick success: ", success)
 env.putdown()  
+
+success = env.pick('orange block')  
+print("pick success: ", success)
+
+print(env.locate('orange block'))

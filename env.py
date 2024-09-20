@@ -285,9 +285,12 @@ class PickPlaceEnv():
   def pick(self, obj_to_pick):
     """Do pick and place motion primitive."""
 
-    if not self.clear(obj_to_pick):
+    if not self.locate(obj_to_pick):
+      print(f"cannot pick as {obj_to_pick} cannot be located")
+      return False
+    if not self.clear(obj_to_pick) :
       print(f"cannot pick as {obj_to_pick} as its not clear")
-      return
+      return False
 
     pick_pos = self.get_obj_pos(obj_to_pick).copy()
 
@@ -324,14 +327,26 @@ class PickPlaceEnv():
     for _ in range(50):
       self.step_sim_and_render()
 
-    observation = self.get_observation()
-    reward = self.get_reward()
-    done = False
-    info = {}
-    return observation, reward, done, info
+    if self.hand_empty():
+      return False
+    return True
+
+    # observation = self.get_observation()
+    # reward = self.get_reward()
+    # done = False
+    # info = {}
+    # return observation, reward, done, info
 
   def place(self, obj_to_place):
     """Do place motion primitive."""
+
+    if not self.locate(obj_to_place):
+      print(f"cannot pick as {obj_to_place} cannot be located")
+      return False
+    if not self.clear(obj_to_place) :
+      print(f"cannot pick as {obj_to_place} as its not clear")
+      return False
+        
     place_pos = self.get_obj_pos(obj_to_place).copy()
 
     if place_pos.shape[-1] == 2:
@@ -368,11 +383,20 @@ class PickPlaceEnv():
       self.step_sim_and_render()
       ee_xyz = self.get_ee_pos()
 
-    observation = self.get_observation()
-    reward = self.get_reward()
-    done = False
-    info = {}
-    return observation, reward, done, info
+    if not self.hand_empty():
+      return False
+    return True
+    # observation = self.get_observation()
+    # reward = self.get_reward()
+    # done = False
+    # info = {}
+    # return observation, reward, done, info
+
+  def locate(self, obj_to_locate):
+    if obj_to_locate in self.object_list:
+      return True
+    else:
+      return False
 
   def putdown(self):
     obj_pos = []
