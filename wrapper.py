@@ -156,6 +156,13 @@ class PerceptionFailureWrapper(Wrapper):
               perceptual_failure_objects: Union[List[str], str],
               object_list: List[str], 
               failure_type: str = "not visible") -> None: 
+        '''
+        Custom reset function to simulate the failure scenarios in the environment.
+        args:
+            perceptual_failure_objects: object which fails to be perceived
+            object_list: list of objects to be placed in the environment
+            failure_type: type of failure, choose from ['not visible', 'not present']
+        '''
 
         if not perceptual_failure_objects:
             print("perceptual_failure_objects not provided, resetting the environment without any failures")
@@ -187,7 +194,65 @@ class PerceptionFailureWrapper(Wrapper):
 
         return self.env.get_observation()
 
+class PlaceFailureWrapper(Wrapper):
+    
+    def __init__(self, env, 
+                 ) -> None:
+        super
+    
+    def reset(self, 
+              object_list: List[str], 
+              obj_which_fails: str, 
+              obstructing_object:Optional[str] = None) -> None:
+        
+        '''
+        Custom reset function to simulate the failure scenarios in the environment.
+        args:
+            object_list: list of objects to be placed in the environment
+            obj_which_fails: object which fails to be picked or placed
+            obstructing_object: object which obstructs the obj_which_fails
+        '''
 
-def place_failure(obj_which_fails):
-    ## obj_which_fails is not clear    
-    pass
+        if not obj_which_fails:
+            print("obj_which_fails not provided, resetting the environment without any failures")
+            return self.env.reset(object_list)
+
+        self.env.reset(object_list)
+        # move the obj_which_fails under another object or object obstructed
+        fail_obj_id = self.env.obj_name_to_id[obj_which_fails]
+
+        # check whether thr obj_which_fails and obstructing_object are present in the scene
+        assert obj_which_fails in object_list, f"{obj_which_fails} not in object_list"
+        if obstructing_object is not None:
+            assert obstructing_object in object_list, f"{obstructing_object} not in object_list"
+        
+        object_type = obj_which_fails.split(' ')[1]
+
+        if not obstructing_object:
+            # randomly select an object to obstruct the obj_which_fails
+            obstructing_object = np.random.choice([obj for obj in object_list if obj != obj_which_fails])
+        
+        # get the object id of the obstructing object
+        obstructing_obj_id = self.env.obj_name_to_id[obstructing_object]
+
+        # get the position of the obstructing object
+        obstructing_obj_pos, obstructing_obj_orn = pybullet.getBasePositionAndOrientation(obstructing_obj_id)
+
+        # get the initial orientation of the obj_which_fails
+        fail_obj_pos, fail_obj_orn = pybullet.getBasePositionAndOrientation(fail_obj_id)
+
+        # move the obstructing object up by its height
+        obstructing_obj_pos_move_up = np.array(obstructing_obj_pos)
+        obstructing_obj_pos_move_up[2] += self.halfExtents[2] * 2
+        pybullet.resetBasePositionAndOrientation(obstructing_obj_id, obstructing_obj_pos_move_up, obstructing_obj_orn)
+
+        # put the obj_which_fails under the obstructing object
+        pybullet.resetBasePositionAndOrientation(fail_obj_id, obstructing_obj_pos, fail_obj_orn)
+
+        # step the simulation
+        for _ in range(10):
+            pybullet.stepSimulation()
+        
+        return self.env.get_observation()
+
+
