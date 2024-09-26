@@ -49,7 +49,7 @@ def encode_image(image_path):
       return base64.b64encode(image_file.read()).decode('utf-8')
     
 
-def get_vision_response(system_prompts, user_prompts: list, images: str, api_key: str):
+def get_vision_response(system_prompts, user_prompts: list, images: str, api_token: str):
     user_prompt = build_prompts(user_prompts) 
     # print('user prompt: ', user_prompt)
     system_prompt = build_system_prompts(system_prompts) 
@@ -59,7 +59,7 @@ def get_vision_response(system_prompts, user_prompts: list, images: str, api_key
     base64_image = encode_image('images/' + images) 
     headers = {
       "Content-Type": "application/json",
-      "Authorization": f"Bearer {api_key}"
+      "Authorization": f"Bearer {api_token}"
     }
 
     payload = {
@@ -96,49 +96,6 @@ def get_vision_response(system_prompts, user_prompts: list, images: str, api_key
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
 
     return response.json()['choices'][0]['message']['content']
-
-def get_language_response(system_prompts, user_prompts: list, api_key: str):
-    user_prompt = build_prompts(user_prompts) 
-    # print('user prompt: ', user_prompt)
-    system_prompt = build_system_prompts(system_prompts) 
-    # print('system prompt: ', system_prompt)
-    # client = OpenAI() 
-
-    base64_image = encode_image('images/' + images) 
-    headers = {
-      "Content-Type": "application/json",
-      "Authorization": f"Bearer {api_key}"
-    }
-
-    payload = {
-      'model': "gpt-4-turbo",
-      'messages': [
-        {
-          "role": "user",
-          "content": [
-            {
-                "type": "text", 
-                "text": user_prompt
-            },
-          ],
-        }, 
-        {
-            'role': 'system', 
-            'content': [
-                {
-                    'type': 'text', 
-                    'text': system_prompt
-                }
-          ]
-        }
-      ],
-      'max_tokens':300,
-    }
-
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-
-    return response.json()['choices'][0]['message']['content']
-
 
 if __name__ == '__main__':
     system_prompts = ['sys_test.txt']
