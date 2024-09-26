@@ -12,6 +12,7 @@ ALL_BOWLS = ['blue bowl', 'yellow bowl', 'brown bowl', 'gray bowl']
 
 env = PickPlaceEnv(render=True, high_res=high_resolution, high_frame_rate=high_frame_rate)
 env = PerceptionFailureWrapper(env)
+# env = PickFailureWrapper(env)
 
 # block_list = np.random.choice(ALL_BLOCKS, size=num_blocks, replace=False).tolist()
 block_list = ['blue block', 'red block', 'green block','yellow block']
@@ -19,7 +20,11 @@ bowl_list = np.random.choice(ALL_BOWLS, size=num_bowls, replace=False).tolist()
 obj_list = block_list + bowl_list
 _ = env.reset(object_list=obj_list, 
               perceptual_failure_objects='blue block', 
-              failure_type='not visible')
+              failure_type='not present')
+
+# _ = env.reset(obj_list,
+#               obj_which_fails = 'blue block',
+#               obstructing_object = 'red block')
 
 # Example to get pose:
 print("get obj pose:", env.get_obj_pos(block_list[0]))

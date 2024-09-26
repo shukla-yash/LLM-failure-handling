@@ -163,7 +163,6 @@ class PerceptionFailureWrapper(Wrapper):
             object_list: list of objects to be placed in the environment
             failure_type: type of failure, choose from ['not visible', 'not present']
         '''
-
         if not perceptual_failure_objects:
             print("perceptual_failure_objects not provided, resetting the environment without any failures")
             return self.env.reset(object_list)
@@ -185,14 +184,33 @@ class PerceptionFailureWrapper(Wrapper):
             for obj in perceptual_failure_objects:
                 obj_id = self.env.obj_name_to_id[obj]
                 pybullet.removeBody(obj_id)
+                # remove the object from the object_list
+                self.env.object_list.remove(obj)
+                # remove from obj_name_to_id
+                self.env.obj_name_to_id.pop(obj)
+        
         else:
             raise ValueError(f"failure_type {failure_type} not supported, choose from ['not visible', 'not present']")
-        
+        print("env obj list:", self.env.object_list)
         # step the simulation
         for _ in range(10):
             pybullet.stepSimulation()
 
         return self.env.get_observation()
+
+    def get_obj_pos(self, obj_name):
+        from env import CORNER_POS
+        obj_name = obj_name.replace('the', '').replace('_', ' ').strip()
+        if obj_name in CORNER_POS:
+            position = np.float32(np.array(CORNER_POS[obj_name]))
+        elif obj_name in self.env.obj_name_to_id.keys():
+            pick_id = self.get_obj_id(obj_name)
+            pose = pybullet.getBasePositionAndOrientation(pick_id)
+            position = np.float32(pose[0])
+        else:
+            print(f"get_obj_pos: {obj_name} not in the scene")
+            position = None
+        return position
 
 class PlaceFailureWrapper(Wrapper):
     
