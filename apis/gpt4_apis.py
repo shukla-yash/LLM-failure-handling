@@ -98,6 +98,56 @@ def get_vision_response(system_prompts, user_prompts: list, images: str):
 
     return response.json()['choices'][0]['message']['content']
 
+def get_language_response(system_prompts, user_prompts: list):
+    user_prompt = build_prompts(user_prompts) 
+    # print('user prompt: ', user_prompt)
+    system_prompt = build_system_prompts(system_prompts) 
+    # print('system prompt: ', system_prompt)
+    # client = OpenAI() 
+    # client.api_key = 'sk-proj-mG0sYllp0gzorA8sEneHT3BlbkFJfSH5P69RX30WQb4C6BDx' 
+
+    base64_image = encode_image('images/' + images) 
+    headers = {
+      "Content-Type": "application/json",
+      "Authorization": f"Bearer {'sk-proj-mG0sYllp0gzorA8sEneHT3BlbkFJfSH5P69RX30WQb4C6BDx'}"
+    }
+
+    payload = {
+      'model': "gpt-4-turbo",
+      'messages': [
+        {
+          "role": "user",
+          "content": [
+            {
+                "type": "text", 
+                "text": user_prompt
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": f"data:image/jpeg;base64,{base64_image}"
+                }
+            },
+          ],
+        }, 
+        {
+            'role': 'system', 
+            'content': [
+                {
+                    'type': 'text', 
+                    'text': system_prompt
+                }
+          ]
+        }
+      ],
+      'max_tokens':300,
+    }
+
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+
+    return response.json()['choices'][0]['message']['content']
+
+
 if __name__ == '__main__':
     system_prompts = ['sys_test.txt']
     user_prompts = ['test.txt'] 
