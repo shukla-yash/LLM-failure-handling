@@ -19,7 +19,7 @@ _ = env.reset(obj_list)
 print("get obj pose:", env.get_obj_pos(block_list[0]))
 print("get obj pose:", env.get_obj_pos(bowl_list[0]))
 
-obj_predicates = {obj_list[i]: {} for i in range(len(obj_list))}
+obj_predicates = {obj_list[i]: {} for i in range(len(obj_list))} # This obj predicate is deterministic. I will make it probabilistic
 
 # Get predicate values:
 for count, obj in enumerate(obj_list):

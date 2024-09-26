@@ -1,0 +1,9 @@
+The current belief is:
+
+is_on_table(red block): 0.8  # The robot thinks that there is a 80 % chance the red block is on the table
+is_on_table(blue block): 0.75 # The robot thinks that there is a 75 % chance the blue block is on the table
+is_on_table(green block): 0.4 # The robot thinks that there is a 40 % chance the green block is on the table
+is_on(blue block, green block): 0.6 # The robot thinks that there is a 60 % chance the green block is on the blue block
+is_clear(red block): 0.9 # The robot thinks that there is a 90 % chance the red block is clear (nothing on top of the block)
+is_clear(blue block): 0.1 # The robot thinks that there is a 10 % chance the blue block is clear (nothing on top of the block)  
+is_clear(green block): 0.9 # The robot thinks that there is a 90 % chance the green block is clear (nothing on top of the block)

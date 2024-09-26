@@ -7,8 +7,8 @@ P_reachable_obj1 = 0.8  # P(Object 1 is reachable)
 P_reachable_obj2 = 0.6  # P(Object 2 is reachable)
 
 # Initial uniform likelihood of success
-P_success_given_reachable_obj1 = 0.85 # sensors - hardcoded info
-P_success_given_not_reachable_obj1 = 0.15
+P_success_given_reachable_obj1 = 0.5 # sensors - hardcoded info
+P_success_given_not_reachable_obj1 = 0.5
 
 # Adjust likelihood based on reachability of object 2
 P_success_given_reachable_obj2 = 0.5
