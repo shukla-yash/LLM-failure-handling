@@ -17,7 +17,7 @@ class Operator:
     name: str
     explanation: str 
     precondition: Precondition 
-    arguments: str | list[str] 
+    arguments: str | list[str] | None
     effect: Effect 
 
 
