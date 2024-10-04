@@ -145,7 +145,7 @@ if __name__ == '__main__':
     user_prompts = ['user_tmp.txt'] 
     images = 'test.jpg' 
 
-    print(get_language_response(system_prompts, user_prompts)
+    print(get_language_response(system_prompts, user_prompts))
     
     ## right now lets just assume that we only need LLM (no images)
 
