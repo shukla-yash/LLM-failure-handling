@@ -174,17 +174,3 @@ if __name__ == '__main__':
     Parse that plan and get a list of API(parameter calls)
 
     """
-
-
-  """
-  1. getting probabilistic beliefs from the env and writing them in environment_belief.txt
-  2. parsing the initial plan from the LLM and generating sequence of API Calls
-  3. write a for loop that executes the API calls
-  4. If any API call fails; update the failure_system_prompt and the environment_belief.txt files
-  5. parsing the new plan and generating sequence of API calls and execute them
-  6. loop (if another failure go to step 4)
-  """
-
-  """
-  For each API call; maintain a belief over preconditions and effects and keep updating it 
-  """

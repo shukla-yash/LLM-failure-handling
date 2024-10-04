@@ -221,8 +221,8 @@ class PickPlaceEnv():
 
         # Get random position 15cm+ from other objects.
         while True:
-          rand_x = np.random.uniform(BOUNDS[0, 0] + 0.1, BOUNDS[0, 1] - 0.1)
-          rand_y = np.random.uniform(BOUNDS[1, 0] + 0.1, BOUNDS[1, 1] - 0.1)
+          rand_x = np.random.uniform(BOUNDS[0, 0] + 0.07, BOUNDS[0, 1] - 0.07)
+          rand_y = np.random.uniform(BOUNDS[1, 0] + 0.07, BOUNDS[1, 1] - 0.07)
           rand_xyz = np.float32([rand_x, rand_y, 0.03]).reshape(1, 3)
           if len(obj_xyz) == 0:
             obj_xyz = np.concatenate((obj_xyz, rand_xyz), axis=0)
@@ -337,14 +337,18 @@ class PickPlaceEnv():
     # info = {}
     # return observation, reward, done, info
 
-  def place(self, obj_to_place):
+  def place(self, which_object, obj_to_place):
     """Do place motion primitive."""
 
+    if 'table' in obj_to_place:
+      self.putdown()
+      return True
+
     if not self.locate(obj_to_place):
-      print(f"cannot pick as {obj_to_place} cannot be located")
+      print(f"cannot place as {obj_to_place} cannot be located")
       return False
     if not self.clear(obj_to_place) :
-      print(f"cannot pick as {obj_to_place} as its not clear")
+      print(f"cannot place as {obj_to_place} as its not clear")
       return False
         
     place_pos = self.get_obj_pos(obj_to_place).copy()
@@ -398,7 +402,8 @@ class PickPlaceEnv():
     else:
       return False
 
-  def putdown(self):
+  def putdown(self, obj_to_place = None):
+
     obj_pos = []
     for objs in self.object_list:
       obj_pos.append(self.get_obj_pos(objs).copy())

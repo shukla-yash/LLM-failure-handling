@@ -8,13 +8,15 @@ from wrapper import *
 from apis.gpt4_apis import get_language_response, get_vision_response
 
 class LLMAgent:
-    def __init__(self, env: PickPlaceEnv | Wrapper, task: str, api_token: str):
+    # def __init__(self, env: PickPlaceEnv | Wrapper, task: str, api_token: str):
+    def __init__(self, env, task, api_token):
+
         self._env = env 
         self._plan = [] 
         self._task = task
         self._current_plan_idx = 0
-        self._system_prompts = ['initial_system_prompt.txt']
-        self._user_prompts = []
+        self._system_prompts = ['initial_system_prompt.txt', 'environment_belief.txt']
+        self._user_prompts = ['user_tmp.txt']
         self._api_token = api_token
         
     def update_plan(self): 
@@ -23,7 +25,12 @@ class LLMAgent:
             user_prompts=self._user_prompts, 
             api_token=self._api_token
         )
-        self.plan = eval(plan) # TODO: Replace this with primitives and structured responses 
+        print("plan: ", plan)
+        self._plan = eval(plan) # TODO: Replace this with primitives and structured responses 
+        # self._plan = plan # TODO: Replace this with primitives and structured responses 
+
+    def __len__(self):
+        return len(self._plan)
 
     def step(self):
         operator = self._plan[self._current_plan_idx]
@@ -34,7 +41,9 @@ class LLMAgent:
         else:
             raise NotImplementedError
         operator = getattr(self._env, operator)
+        print(operator)
         if operator(*arguments):
+            operator(*arguments)
             self._current_plan_idx += 1
             return True 
         else:
