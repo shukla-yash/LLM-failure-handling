@@ -1,6 +1,7 @@
 import pybullet
 from typing import Optional, List, Union
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 class Wrapper:
     """
@@ -273,4 +274,128 @@ class PlaceFailureWrapper(Wrapper):
         
         return self.env.get_observation()
 
+class ObjectGraspFailureWrapper(Wrapper):
+
+    '''
+    Object blocked by other blocks in all four sides
+    '''
+    
+    def __init__(self, env, 
+                 ) -> None:
+        super().__init__(env)
+        self.halfExtents_cube = [0.02, 0.02, 0.02]
+        self.halfExtents_bowl = [0.04, 0.04, 0.04]
+    
+    def reset(self, 
+            object_list: List[str], 
+            obj_which_fails: str, 
+            obstructing_object:Optional[str] = None) -> None:
+        '''
+        Custom reset function to simulate the failure scenarios in the environment.
+        args:
+            object_list: list of objects to be placed in the environment
+            obj_which_fails: object which fails to be picked or placed
+            obstructing_object: object which obstructs the obj_which_fails
+        '''
+
+        if not obj_which_fails:
+            print("obj_which_fails not provided, resetting the environment without any failures")
+            return self.env.reset(object_list)
+        
+        self.env.reset(object_list)
+
+        # if obstructing_object is not provided, randomly select 4 objects to obstruct the obj_which_fails
+        if len(obstructing_object) != 4:
+            print("not enough obstructing objects provided, randomly selecting 4 objects")
+            obstructing_object = np.random.choice([obj for obj in object_list if obj != obj_which_fails], 4)
+
+        # check whether thr obj_which_fails and obstructing_object are present in the scene
+        assert obj_which_fails in object_list, f"{obj_which_fails} not in object_list"
+        for obj in obstructing_object:
+            assert obj in object_list, f"{obj} not in object_list"
+        
+        # get the object id of the obstructing object
+        obstructing_obj_ids = [self.env.obj_name_to_id[obj] for obj in obstructing_object]
+
+        # get the position and orientation of the obj_which_fails
+        fail_obj_id = self.env.obj_name_to_id[obj_which_fails]
+        fail_obj_pos, fail_obj_orn = pybullet.getBasePositionAndOrientation(fail_obj_id)
+        fail_obj_pos = np.array(fail_obj_pos)
+
+
+        # calculate the positions of the obstructing objects
+        fail_obj_rot = R.from_quat(fail_obj_orn)
+        fail_obj_rot = fail_obj_rot.as_matrix()
+
+        # calculate the positions of the obstructing objects
+        displacement_object_frame = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]], dtype=float)
+        # displacement_object_frame *= self.halfExtents[0] * 2
+        for idx in range(4):
+            if obstructing_object[idx].split(' ')[1] == 'block':
+                displacement_object_frame[idx] *= self.halfExtents_cube[0] * 2
+            elif obstructing_object[idx].split(' ')[1] == 'bowl':
+                displacement_object_frame[idx] *= self.halfExtents_bowl[0] * 2
+            else:
+                raise ValueError(f"object type {obstructing_object[idx].split(' ')[1]} not supported")
+        # calculate the positions of the obstructing objects
+        obstructing_obj_pos = [fail_obj_pos + np.dot(fail_obj_rot, displacement) for displacement in displacement_object_frame]
+        print("obstructing_obj_pos:", obstructing_obj_pos)
+        # move the obstructing objects to the calculated positions
+        for obj_id, pos in zip(obstructing_obj_ids, obstructing_obj_pos):
+            pybullet.resetBasePositionAndOrientation(obj_id, pos, fail_obj_orn)
+
+        # step the simulation
+        for _ in range(10):
+            pybullet.stepSimulation()
+        return self.env.get_observation()
+
+class ObjectNotReachableWrapper(Wrapper):
+
+    '''
+    Object placed at unreachable position
+    '''
+    
+    def __init__(self, env, 
+                 ) -> None:
+        super().__init__(env)
+        self.robot_working_distance = 0.75
+        self.object_robot_distance_upper_limit = 1.0
+
+    def reset(self,
+              object_list: List[str],
+              obj_which_fails: str):
+        '''
+        Custom reset function to simulate the failure scenarios in the environment.
+        args:
+            obj_which_fails: object which is placed at unreachable position
+        '''
+        if not obj_which_fails:
+            print("obj_which_fails not provided, resetting the environment without any failures")
+            return self.env.reset(object_list)
+
+        self.env.reset(object_list)
+
+        assert obj_which_fails in self.env.object_list, f"{obj_which_fails} not in object_list"
+
+        # get the object id of the obj_which_fails
+        fail_obj_id = self.env.obj_name_to_id[obj_which_fails]
+
+        # put the obj_which_fails at an unreachable position
+        radius = np.random.uniform(self.robot_working_distance, self.object_robot_distance_upper_limit)
+        angle = np.random.uniform(np.pi, 2*np.pi)
+        x = radius * np.cos(angle)
+        y = radius * np.sin(angle)
+
+        # get the initial position and orinetation of the obj_which_fails
+        fail_obj_pos, fail_obj_orn = pybullet.getBasePositionAndOrientation(fail_obj_id)
+
+        # move the obj_which_fails to the unreachable position
+        unreachable_pos = np.array([x, y, fail_obj_pos[2]])
+        pybullet.resetBasePositionAndOrientation(fail_obj_id, unreachable_pos, fail_obj_orn)
+
+        # step the simulation
+        for _ in range(10):
+            pybullet.stepSimulation()
+        
+        return self.env.get_observation()
 
