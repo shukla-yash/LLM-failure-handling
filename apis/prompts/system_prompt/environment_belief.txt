@@ -1,0 +1,8 @@
+The current belief is:
+
+is_on_table(red block) # The robot thinks that the red block is on the table
+is_on_table(blue block) # The robot thinks that the blue block is on the table
+is_on(blue block, green block) # The robot thinks that the green block is on the blue block
+is_on(green block, yellow block) # The robot thinks that the yellow block is on the green block
+is_clear(red block) # The robot thinks that the red block is clear (nothing on top of it)
+is_clear(yellow block) # The robot thinks that the yello block is clear (nothing on top of it)

@@ -1,0 +1,1 @@
+Goal in natural language: 'red block on top of blue block'
