@@ -305,15 +305,14 @@ class ObjectGraspFailureWrapper(Wrapper):
         self.env.reset(object_list)
 
         # if obstructing_object is not provided, randomly select 4 objects to obstruct the obj_which_fails
-        if len(obstructing_object) != 4:
+        if not obstructing_object or len(obstructing_object) != 4:
             print("not enough obstructing objects provided, randomly selecting 4 objects")
-            obstructing_object = np.random.choice([obj for obj in object_list if obj != obj_which_fails], 4)
+            obstructing_object = np.random.choice([obj for obj in object_list if obj != obj_which_fails], 4, replace=False)
 
         # check whether thr obj_which_fails and obstructing_object are present in the scene
         assert obj_which_fails in object_list, f"{obj_which_fails} not in object_list"
         for obj in obstructing_object:
             assert obj in object_list, f"{obj} not in object_list"
-        
         # get the object id of the obstructing object
         obstructing_obj_ids = [self.env.obj_name_to_id[obj] for obj in obstructing_object]
 
