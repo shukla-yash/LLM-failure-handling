@@ -718,3 +718,8 @@ class PickPlaceEnv():
     obj_id = self.get_obj_id(obj_name)
     return pybullet.getAABB(obj_id)
 
+  def get_object_positions(self):
+    obj_pos = []
+    for objs in self.object_list:
+      obj_pos.append(self.get_obj_pos(objs).copy())
+    return obj_pos    

@@ -5,7 +5,9 @@ from env import PickPlaceEnv
 import os
 import pybullet
 from typing import Optional
+import numpy as np
 
+MAX_REWARD = 100
 
 class PickPlaceRLEnv(Env, Wrapper):
     '''
@@ -15,11 +17,19 @@ class PickPlaceRLEnv(Env, Wrapper):
     def __init__(self, 
                  env: PickPlaceEnv, 
                  reset_to_state: bool = False, 
-                 state: Optional[dict] = None, 
+                 state: Optional[dict] = None,
+                 type_of_failure: str = None,
+                 target_object:str = None, 
                  object_list: Optional[list] = None) -> None:
         
         super().__init__(env=env)
         self.reset_to_state = reset_to_state
+        self.env = env
+        assert type_of_failure is not None, "Need to provide which operator has failed"
+        self.type_of_failure = type_of_failure
+
+        assert target_object is not None, "Need to provide which object has failed"
+        self.target_object = target_object
 
         if self.reset_to_state:
             assert state is not None, "State must be provided if reset_to_state is True"
@@ -28,6 +38,13 @@ class PickPlaceRLEnv(Env, Wrapper):
             assert object_list is not None, "Object list must be provided if reset_to_state is False"
             self.object_list = object_list
         
+        total_number_of_objects = len(self.env.object_list)
+
+        self.action_mapping = {}
+        for i in range(total_number_of_objects):
+            self.action_mapping[i] = self.env.pick(total_number_of_objects[i])
+            self.action_mapping[i+total_number_of_objects] = self.env.putdown(total_number_of_objects[i])
+
     def reset(self) -> dict:
         '''
         Reset the environment using the state_id
@@ -55,15 +72,15 @@ class PickPlaceRLEnv(Env, Wrapper):
     def step(self, action: Any):
 
         # take the action
-        self.env.movep(action)
+        self.action_mapping[action]
         
         # step the simulation
         self.env.step_sim_and_render()
 
         # get the observation
         obs = self.get_observation()
-        reward = self.reward()
-        done = self.done()
+        reward, done = self.reward()
+        # done = self.done()
         info = {}
         return obs, reward, done, info
 
@@ -71,8 +88,40 @@ class PickPlaceRLEnv(Env, Wrapper):
         '''
         Get the reward
         '''
-        return 0
+        if self.type_of_failure == 'Object not pickup-able':
+            return self.get_pickupable_reward()
+        elif self.type_of_failure == 'Object not reachable':
+            return self.get_reachable_reward()        
+        elif self.type_of_failure == 'Object not visible':
+            return self.get_visible_reward()        
+
+    def get_pickupable_reward(self):
+        if not self.env.hand_empty():
+            robot_ee_pos = self.env.get_ee_pos()
+            object_ee_pos = self.env.get_obj_pos(self.target_object)
+            xy_dist = np.linalg.norm(robot_ee_pos[:2] - object_ee_pos[:2])
+            if xy_dist < 0.1:
+                return MAX_REWARD, True
+        return -1, False
+
+    def get_reachable_reward(self):
+        object_ee_pos = self.env.get_obj_pos(self.target_object)
+        xy_dist = np.linalg.norm([0,0] - object_ee_pos[:2])
+        if xy_dist < 0.5:
+            return MAX_REWARD, True
+        return -1, False
     
+    def get_visible_reward(self): # TODO: Needs more checks
+        if self.env.locate(self.target_object):
+            return MAX_REWARD, True
+        return -1, False        
+
+    def get_observation(self):
+        obj_pos = self.env.get_object_positions()
+        return obj_pos
+
+
+
     def done(self):
         '''
         Check if the episode is done
