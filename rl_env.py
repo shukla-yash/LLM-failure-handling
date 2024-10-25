@@ -8,6 +8,7 @@ from typing import Optional
 import numpy as np
 
 MAX_REWARD = 100
+MAX_TIMESTEPS = 100
 
 class PickPlaceRLEnv(Env, Wrapper):
     '''
@@ -44,6 +45,7 @@ class PickPlaceRLEnv(Env, Wrapper):
         for i in range(total_number_of_objects):
             self.action_mapping[i] = self.env.pick(total_number_of_objects[i])
             self.action_mapping[i+total_number_of_objects] = self.env.putdown(total_number_of_objects[i])
+        self.total_number_of_actions = len(self.action_mapping.keys())
 
     def reset(self) -> dict:
         '''
@@ -67,6 +69,8 @@ class PickPlaceRLEnv(Env, Wrapper):
             self.env.reset(object_list=object_list)
 
         obs = self.get_observation()
+        self.episodic_timesteps = 0
+
         return obs
 
     def step(self, action: Any):
@@ -80,6 +84,11 @@ class PickPlaceRLEnv(Env, Wrapper):
         # get the observation
         obs = self.get_observation()
         reward, done = self.reward()
+
+        self.episodic_timesteps += 1
+        if self.episodic_timesteps > MAX_TIMESTEPS:
+            done = True
+
         # done = self.done()
         info = {}
         return obs, reward, done, info
@@ -119,11 +128,3 @@ class PickPlaceRLEnv(Env, Wrapper):
     def get_observation(self):
         obj_pos = self.env.get_object_positions()
         return obj_pos
-
-
-
-    def done(self):
-        '''
-        Check if the episode is done
-        '''
-        return False

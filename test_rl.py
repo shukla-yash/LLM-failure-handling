@@ -41,6 +41,10 @@ ee_pose = rl_env.get_ee_pos()
 new_ee_pose = np.array(ee_pose) + np.array([0.1, 0.1, 0.1])
 
 
+total_number_of_actions_for_RL_env = rl_env.total_number_of_actions
+state_space_dim = 3*len(obj_list)
+
+
 for i in range(100):
     print("Step: ", i)
     rl_env.step(new_ee_pose)
