@@ -44,86 +44,17 @@ class ActorCritic(nn.Module):
             self.action_dim = action_dim
             self.action_var = torch.full((action_dim,), action_std_init * action_std_init).to(device)
         # actor
-        if has_continuous_action_space :
-            self.actor = nn.Sequential(
-                            nn.Linear(state_dim, 64),
-                            nn.Tanh(),
-                            nn.Linear(64, 64),
-                            nn.Tanh(),
-                            nn.Linear(64, action_dim),
-                        )
-        else:
-            self.actor = nn.Sequential(
-                            nn.Conv2d(3, 8, kernel_size = 3, stride = 1, padding="same"),
-                            nn.ReLU(),
-                            nn.MaxPool2d(2,2),
-                            nn.Conv2d(8,16, kernel_size = 3, stride = 1, padding="same"),
-                            nn.ReLU(),
-                            nn.MaxPool2d(2,2),
-                            nn.Flatten(),   
-                            nn.Linear(64,64),
-                            nn.ReLU(),
-                            nn.Linear(64,36),
-                            nn.ReLU(),
-                            # nn.Linear(25,15),
-                            nn.Linear(36,action_dim),
-                            nn.Softmax(dim=-1)
-                            )            
-            # self.actor = nn.Sequential(
-            #                 nn.Conv2d(3, 64, kernel_size = 3, stride = 1),
-            #                 nn.ReLU(),
-            #                 nn.MaxPool2d(2,2),
-            #                 nn.Conv2d(64,64, kernel_size = 3, stride = 1),
-            #                 nn.ReLU(),
-            #                 nn.MaxPool2d(2,2),
-            #                 nn.Conv2d(64,64, kernel_size = 3, stride = 1),
-            #                 nn.ReLU(),
-            #                 nn.MaxPool2d(2,2),                                                        
-            #                 nn.Flatten(),   
-            #                 nn.Linear(6400,512),
-            #                 nn.ReLU(),
-            #                 nn.Linear(512, 512),
-            #                 nn.ReLU(),
-            #                 nn.Linear(512,action_dim),
-            #                 nn.Softmax(dim=-1)
-            #                 )                                        
-        # critic
+        self.actor = nn.Sequential(
+            nn.Linear(state_dim, 64),
+            nn.ReLU(),
+            nn.Linear(64, action_dim),
+            nn.Softmax(dim=-1)
+        )
         self.critic = nn.Sequential(
-                            nn.Conv2d(3, 8, kernel_size = 3, stride = 1, padding="same"),
-                            nn.ReLU(),
-                            nn.MaxPool2d(2,2),
-                            nn.Conv2d(8,16, kernel_size = 3, stride = 1, padding="same"),
-                            nn.ReLU(),
-                            nn.MaxPool2d(2,2),
-                            nn.Flatten(),   
-                            nn.Linear(64,64),
-                            nn.ReLU(),
-                            nn.Linear(64, 36),
-                            nn.ReLU(),
-                            nn.Linear(36,1)
-                            )
-
-
-        # self.critic = nn.Sequential(
-        #                     nn.Conv2d(3, 64, kernel_size = 3, stride = 1),
-        #                     nn.ReLU(),
-        #                     nn.MaxPool2d(2,2),
-        #                     nn.Conv2d(64,64, kernel_size = 3, stride = 1),
-        #                     nn.ReLU(),
-        #                     nn.MaxPool2d(2,2),
-        #                     nn.Conv2d(64,64, kernel_size = 3, stride = 1),
-        #                     nn.ReLU(),
-        #                     nn.MaxPool2d(2,2),                                                        
-        #                     nn.Flatten(),   
-        #                     nn.Linear(6400,512),
-        #                     nn.ReLU(),
-        #                     nn.Linear(512, 512),
-        #                     nn.ReLU(),
-        #                     nn.Linear(512,64),
-        #                     nn.ReLU(),
-        #                     nn.Linear(64,1)
-        #                     )
-
+            nn.Linear(state_dim, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1)
+        )
         
     def set_action_std(self, new_action_std):
         if self.has_continuous_action_space:
