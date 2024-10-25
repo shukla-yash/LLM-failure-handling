@@ -51,6 +51,30 @@ class Wrapper:
         Step the simulation and render.
         """
         return self.env.step_sim_and_render()
+    
+    def get_state(self):
+        """
+        get the current state of the environment
+        return: a dictionary containing the state of the environment
+        """
+
+        state = dict()
+
+        # get the position and orientation of each object
+        for obj_name, obj_id in self.env.obj_name_to_id.items():
+            pos, orn = pybullet.getBasePositionAndOrientation(obj_id)
+            state[obj_name] = {"position": pos, "orientation": orn}
+        
+        return state
+    
+    # def save_state(self, filename):
+    #     """
+    #     save the current state of the environment to a file
+    #     """
+
+    #     pybullet.saveBullet(filename)
+        
+    #     return filename
 
     @property
     def unwrapped(self):
