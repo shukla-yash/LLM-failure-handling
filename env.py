@@ -255,11 +255,11 @@ class PickPlaceEnv():
       pybullet.stepSimulation()
 
     # record object positions at reset
-    self.init_pos = {name: self.get_obj_pos(name) for name in object_list}
+    self.init_pos = {name: self._get_obj_pos(name) for name in object_list}
 
     return self.get_observation()
 
-  def servoj(self, joints):
+  def _servoj(self, joints):
     """Move to target joint positions with position control."""
     pybullet.setJointMotorControlArray(
       bodyIndex=self.robot_id,
@@ -268,7 +268,7 @@ class PickPlaceEnv():
       targetPositions=joints,
       positionGains=[0.01]*6)
   
-  def movep(self, position):
+  def _movep(self, position):
     """Move to target end effector position."""
     joints = pybullet.calculateInverseKinematics(
         bodyUniqueId=self.robot_id,
@@ -276,7 +276,7 @@ class PickPlaceEnv():
         targetPosition=position,
         targetOrientation=pybullet.getQuaternionFromEuler(self.home_ee_euler),
         maxNumIterations=100)
-    self.servoj(joints)
+    self._servoj(joints)
 
   def get_ee_pos(self):
     ee_xyz = np.float32(pybullet.getLinkState(self.robot_id, self.tip_link_id)[0])
@@ -292,7 +292,7 @@ class PickPlaceEnv():
       print(f"cannot pick as {obj_to_pick} as its not clear")
       return False
 
-    pick_pos = self.get_obj_pos(obj_to_pick).copy()
+    pick_pos = self._get_obj_pos(obj_to_pick).copy()
 
     pick_z = pick_pos[2] + 0.005
     # Set fixed primitive z-heights.
@@ -306,33 +306,33 @@ class PickPlaceEnv():
     # Move to object.
     ee_xyz = self.get_ee_pos()
     while np.linalg.norm(hover_xyz - ee_xyz) > 0.01:
-      self.movep(hover_xyz)
-      self.step_sim_and_render()
+      self._movep(hover_xyz)
+      self._step_sim_and_render()
       ee_xyz = self.get_ee_pos()
 
     while np.linalg.norm(pick_xyz - ee_xyz) > 0.01:
-      self.movep(pick_xyz)
-      self.step_sim_and_render()
+      self._movep(pick_xyz)
+      self._step_sim_and_render()
       ee_xyz = self.get_ee_pos()
 
     # Pick up object.
     self.gripper.activate()
     for _ in range(240):
-      self.step_sim_and_render()
+      self._step_sim_and_render()
     while np.linalg.norm(hover_xyz - ee_xyz) > 0.01:
-      self.movep(hover_xyz)
-      self.step_sim_and_render()
+      self._movep(hover_xyz)
+      self._step_sim_and_render()
       ee_xyz = self.get_ee_pos()
     
     for _ in range(50):
-      self.step_sim_and_render()
+      self._step_sim_and_render()
 
     if self.hand_empty():
       return False
     return True
 
     # observation = self.get_observation()
-    # reward = self.get_reward()
+    # reward = self._get_reward()
     # done = False
     # info = {}
     # return observation, reward, done, info
@@ -351,7 +351,7 @@ class PickPlaceEnv():
       print(f"cannot place as {obj_to_place} as its not clear")
       return False
         
-    place_pos = self.get_obj_pos(obj_to_place).copy()
+    place_pos = self._get_obj_pos(obj_to_place).copy()
 
     if place_pos.shape[-1] == 2:
       place_xyz = np.append(place_pos, 0.15)
@@ -362,36 +362,36 @@ class PickPlaceEnv():
     ee_xyz = self.get_ee_pos()
     # Move to place location.
     while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
-      self.movep(place_xyz)
-      self.step_sim_and_render()
+      self._movep(place_xyz)
+      self._step_sim_and_render()
       ee_xyz = self.get_ee_pos()
 
     # Place down object.
     while (not self.gripper.detect_contact()) and (place_xyz[2] > 0.03):
       place_xyz[2] -= 0.001
-      self.movep(place_xyz)
+      self._movep(place_xyz)
       for _ in range(3):
-        self.step_sim_and_render()
+        self._step_sim_and_render()
     self.gripper.release()
     for _ in range(240):
-      self.step_sim_and_render()
+      self._step_sim_and_render()
     place_xyz[2] = 0.2
     ee_xyz = self.get_ee_pos()
     while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
-      self.movep(place_xyz)
-      self.step_sim_and_render()
+      self._movep(place_xyz)
+      self._step_sim_and_render()
       ee_xyz = self.get_ee_pos()
     place_xyz = np.float32([0, -0.5, 0.2])
     while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
-      self.movep(place_xyz)
-      self.step_sim_and_render()
+      self._movep(place_xyz)
+      self._step_sim_and_render()
       ee_xyz = self.get_ee_pos()
 
     if not self.hand_empty():
       return False
     return True
     # observation = self.get_observation()
-    # reward = self.get_reward()
+    # reward = self._get_reward()
     # done = False
     # info = {}
     # return observation, reward, done, info
@@ -406,7 +406,7 @@ class PickPlaceEnv():
 
     obj_pos = []
     for objs in self.object_list:
-      obj_pos.append(self.get_obj_pos(objs).copy())
+      obj_pos.append(self._get_obj_pos(objs).copy())
 
     while True:
       random_empty_pos_candidate = [np.random.uniform(-0.28, 0.28), np.random.uniform(-0.75, -0.25), 0.15]
@@ -422,34 +422,34 @@ class PickPlaceEnv():
     ee_xyz = self.get_ee_pos()
     # Move to place location.
     while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
-      self.movep(place_xyz)
-      self.step_sim_and_render()
+      self._movep(place_xyz)
+      self._step_sim_and_render()
       ee_xyz = self.get_ee_pos()
     print("4:", self.hand_empty())
 
     # Place down object.
     while (not self.gripper.detect_contact()) and (place_xyz[2] > 0.03):
       place_xyz[2] -= 0.001
-      self.movep(place_xyz)
+      self._movep(place_xyz)
       for _ in range(3):
-        self.step_sim_and_render()
+        self._step_sim_and_render()
     self.gripper.release()
     for _ in range(240):
-      self.step_sim_and_render()
+      self._step_sim_and_render()
     place_xyz[2] = 0.2
     ee_xyz = self.get_ee_pos()
     while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
-      self.movep(place_xyz)
-      self.step_sim_and_render()
+      self._movep(place_xyz)
+      self._step_sim_and_render()
       ee_xyz = self.get_ee_pos()
     place_xyz = np.float32([0, -0.5, 0.2])
     while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
-      self.movep(place_xyz)
-      self.step_sim_and_render()
+      self._movep(place_xyz)
+      self._step_sim_and_render()
       ee_xyz = self.get_ee_pos()
 
     observation = self.get_observation()
-    reward = self.get_reward()
+    reward = self._get_reward()
     done = False
     info = {}
     return observation, reward, done, info
@@ -468,7 +468,7 @@ class PickPlaceEnv():
         pybullet.changeVisualShape(
             self.gripper.body, linkIndex=i, rgbaColor=rgba_color)
 
-  def step_sim_and_render(self):
+  def _step_sim_and_render(self):
     pybullet.stepSimulation()
     self.sim_step += 1
 
@@ -484,17 +484,17 @@ class PickPlaceEnv():
     else:
       image_size=(360, 360)
       intrinsics=(180., 0, 180., 0, 180., 180., 0, 0, 1)
-    color, _, _, _, _ = self.render_image(image_size, intrinsics)
+    color, _, _, _, _ = self._render_image(image_size, intrinsics)
     return color
 
-  def get_reward(self):
+  def _get_reward(self):
     return None
 
   def get_observation(self):
     observation = {}
 
     # Render current image.
-    color, depth, position, orientation, intrinsics = self.render_image()
+    color, depth, position, orientation, intrinsics = self._render_image()
 
     # Get heightmaps and colormaps.
     points = self.get_pointcloud(depth, intrinsics)
@@ -511,7 +511,7 @@ class PickPlaceEnv():
 
     return observation
 
-  def render_image(self, image_size=(720, 720), intrinsics=(360., 0, 360., 0, 360., 360., 0, 0, 1)):
+  def _render_image(self, image_size=(720, 720), intrinsics=(360., 0, 360., 0, 360., 360., 0, 0, 1)):
 
     # Camera parameters.
     position = (0, -0.85, 0.4)
@@ -654,8 +654,8 @@ class PickPlaceEnv():
     condition 1: l2 distance on xy plane is less than a threshold
     condition 2: obj_a is higher than obj_b
     """
-    obj_a_pos = self.get_obj_pos(obj_a)
-    obj_b_pos = self.get_obj_pos(obj_b)
+    obj_a_pos = self._get_obj_pos(obj_a)
+    obj_b_pos = self._get_obj_pos(obj_b)
     xy_dist = np.linalg.norm(obj_a_pos[:2] - obj_b_pos[:2])
     if obj_b in CORNER_POS:
       is_near = xy_dist < 0.06
@@ -679,13 +679,13 @@ class PickPlaceEnv():
     """
     True if obj_a is on table
     """
-    obj_a_pos = self.get_obj_pos(obj_a)
+    obj_a_pos = self._get_obj_pos(obj_a)
     if obj_a_pos[2] < 0.03:
       return True
     return False
 
   def clear(self, obj_a):
-    obj_a_pos = self.get_obj_pos(obj_a)
+    obj_a_pos = self._get_obj_pos(obj_a)
     for obj_b in self.object_list:
       is_obj_b_on_top_of_a = self.on_top_of(obj_a = obj_b, obj_b= obj_a)      
       if is_obj_b_on_top_of_a:
@@ -704,7 +704,7 @@ class PickPlaceEnv():
       print(f'available_objects_and_id="{self.obj_name_to_id}')
     return obj_id
   
-  def get_obj_pos(self, obj_name):
+  def _get_obj_pos(self, obj_name):
     obj_name = obj_name.replace('the', '').replace('_', ' ').strip()
     if obj_name in CORNER_POS:
       position = np.float32(np.array(CORNER_POS[obj_name]))
@@ -714,7 +714,7 @@ class PickPlaceEnv():
       position = np.float32(pose[0])
     return position
   
-  def get_bounding_box(self, obj_name):
+  def _get_bounding_box(self, obj_name):
     obj_id = self.get_obj_id(obj_name)
     return pybullet.getAABB(obj_id)
 
