@@ -1,4 +1,5 @@
 from typing import Any, SupportsFloat
+from functools import partial
 from wrapper import Wrapper
 from gymnasium import Env
 from env import PickPlaceEnv
@@ -35,16 +36,19 @@ class PickPlaceRLEnv(Env, Wrapper):
         if self.reset_to_state:
             assert state is not None, "State must be provided if reset_to_state is True"
             self.state = state
+            self.object_list = list(self.state.keys())
         else:
             assert object_list is not None, "Object list must be provided if reset_to_state is False"
             self.object_list = object_list
         
-        total_number_of_objects = len(self.env.object_list)
+        total_number_of_objects = len(self.object_list)
 
         self.action_mapping = {}
         for i in range(total_number_of_objects):
-            self.action_mapping[i] = self.env.pick(total_number_of_objects[i])
-            self.action_mapping[i+total_number_of_objects] = self.env.putdown(total_number_of_objects[i])
+            self.action_mapping[i] = partial(self.env.pick, self.object_list[i])
+
+            # self.action_mapping[i+total_number_of_objects] = self.env.putdown(total_number_of_objects[i])
+            self.action_mapping[i+total_number_of_objects] = partial(self.env.putdown, self.object_list[i])
         self.total_number_of_actions = len(self.action_mapping.keys())
 
     def reset(self) -> dict:
@@ -76,7 +80,7 @@ class PickPlaceRLEnv(Env, Wrapper):
     def step(self, action: Any):
 
         # take the action
-        self.action_mapping[action]
+        self.action_mapping[action]()
         
         # step the simulation
         self.env.step_sim_and_render()
@@ -108,8 +112,10 @@ class PickPlaceRLEnv(Env, Wrapper):
         if not self.env.hand_empty():
             robot_ee_pos = self.env.get_ee_pos()
             object_ee_pos = self.env.get_obj_pos(self.target_object)
-            xy_dist = np.linalg.norm(robot_ee_pos[:2] - object_ee_pos[:2])
-            if xy_dist < 0.1:
+            # xy_dist = np.linalg.norm(robot_ee_pos[:2] - object_ee_pos[:2])
+            # TODO: modify this to make it more robust
+            dist = np.linalg.norm(robot_ee_pos - object_ee_pos)
+            if dist < 0.1:
                 return MAX_REWARD, True
         return -1, False
 
@@ -127,4 +133,5 @@ class PickPlaceRLEnv(Env, Wrapper):
 
     def get_observation(self):
         obj_pos = self.env.get_object_positions()
+        obj_pos = np.array(obj_pos).flatten()
         return obj_pos

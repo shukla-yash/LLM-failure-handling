@@ -153,7 +153,8 @@ class Robotiq2F85:
 
 class PickPlaceEnv():
 
-  def __init__(self, render=False, high_res=False, high_frame_rate=False):
+  def __init__(self, render=False, high_res=False, high_frame_rate=False, max_steps=2000):
+    self.render = render
     self.dt = 1/480
     self.sim_step = 0
 
@@ -161,9 +162,12 @@ class PickPlaceEnv():
     # python3 -m pybullet_utils.runServer
     # pybullet.connect(pybullet.SHARED_MEMORY)  # pybullet.GUI for local GUI.
     # pybullet.connect(pybullet.DIRECT)  # pybullet.GUI for local GUI.
-    pybullet.connect(pybullet.GUI)  # pybullet.GUI for local GUI.
+    if self.render:
+      pybullet.connect(pybullet.GUI)
+    else:
+      pybullet.connect(pybullet.DIRECT)  # pybullet.GUI for local GUI.
     
-    pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_GUI, 0)
+    # pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_GUI, 0)
     pybullet.setPhysicsEngineParameter(enableFileCaching=0)
     assets_path = os.path.dirname(os.path.abspath(""))
     pybullet.setAdditionalSearchPath(assets_path)
@@ -176,9 +180,11 @@ class PickPlaceEnv():
     self.tip_link_id = 10  # Link ID of gripper finger tips.
     self.gripper = None
 
-    self.render = render
+    
     self.high_res = high_res
     self.high_frame_rate = high_frame_rate
+
+    self.max_steps = max_steps # max number of steps for one action
 
   def reset(self, object_list):
     pybullet.resetSimulation(pybullet.RESET_USE_DEFORMABLE_WORLD)
@@ -285,6 +291,8 @@ class PickPlaceEnv():
   def pick(self, obj_to_pick):
     """Do pick and place motion primitive."""
 
+    steps = 0
+
     if not self.locate(obj_to_pick):
       print(f"cannot pick as {obj_to_pick} cannot be located")
       return False
@@ -309,11 +317,19 @@ class PickPlaceEnv():
       self.movep(hover_xyz)
       self.step_sim_and_render()
       ee_xyz = self.get_ee_pos()
+      steps += 1
+      if steps > self.max_steps:
+        print("max steps reached while moving to hover position")
+        return False
 
     while np.linalg.norm(pick_xyz - ee_xyz) > 0.01:
       self.movep(pick_xyz)
       self.step_sim_and_render()
       ee_xyz = self.get_ee_pos()
+      steps += 1
+      if steps > self.max_steps:
+        print("max steps reached while moving to pick position")
+        return False
 
     # Pick up object.
     self.gripper.activate()
@@ -323,12 +339,32 @@ class PickPlaceEnv():
       self.movep(hover_xyz)
       self.step_sim_and_render()
       ee_xyz = self.get_ee_pos()
+      steps += 1
+      if steps > self.max_steps:
+        print("max steps reached while moving to hover position after pick")
+        return False
     
     for _ in range(50):
       self.step_sim_and_render()
 
     if self.hand_empty():
       return False
+    
+
+    if obj_to_pick == 'blue block' and not self.hand_empty():
+      # check the object that is closest to the gripper
+      obj_pos = []
+      for objs in self.object_list:
+        obj_pos.append(self.get_obj_pos(objs).copy())
+      obj_pos = np.array(obj_pos)
+      ee_pos = self.get_ee_pos()
+      dist = np.linalg.norm(obj_pos - ee_pos, axis=1)
+      closest_obj = self.object_list[np.argmin(dist)]
+      # print(f"closest object to gripper is {closest_obj}")
+      if closest_obj == obj_to_pick:
+        print("picked up the correct object!")
+
+
     return True
 
     # observation = self.get_observation()
@@ -403,12 +439,15 @@ class PickPlaceEnv():
       return False
 
   def putdown(self, obj_to_place = None):
-
+    steps = 0
+    
     obj_pos = []
     for objs in self.object_list:
       obj_pos.append(self.get_obj_pos(objs).copy())
 
+    num_choose_times = 0
     while True:
+      # random_empty_pos_candidate = [np.random.uniform(-0.28, 0.28), np.random.uniform(-0.75, -0.25), 0.15]
       random_empty_pos_candidate = [np.random.uniform(-0.28, 0.28), np.random.uniform(-0.75, -0.25), 0.15]
       total_objects_far = 0
       for pos in obj_pos:
@@ -417,6 +456,14 @@ class PickPlaceEnv():
       if total_objects_far == len(obj_pos):
         empty_position = random_empty_pos_candidate.copy()
         break 
+      num_choose_times += 1
+      if num_choose_times > 100:
+        print("cannot find empty position to place object")
+        observation = self.get_observation()
+        reward = self.get_reward()
+        done = False
+        info = {}
+        return observation, reward, done, info
     place_xyz = empty_position
     place_xyz[2] = 0.15
     ee_xyz = self.get_ee_pos()
@@ -425,12 +472,29 @@ class PickPlaceEnv():
       self.movep(place_xyz)
       self.step_sim_and_render()
       ee_xyz = self.get_ee_pos()
-    print("4:", self.hand_empty())
+      steps += 1
+      if steps > self.max_steps:
+        print("max steps reached while moving to place position")
+        self.gripper.release()
+        observation = self.get_observation()
+        reward = self.get_reward()
+        done = False
+        info = {}
+        return observation, reward, done, info
 
     # Place down object.
     while (not self.gripper.detect_contact()) and (place_xyz[2] > 0.03):
       place_xyz[2] -= 0.001
       self.movep(place_xyz)
+      steps += 1
+      if steps > self.max_steps:
+        print("max steps reached while placing object")
+        self.gripper.release()
+        observation = self.get_observation()
+        reward = self.get_reward()
+        done = False
+        info = {}
+        return observation, reward, done, info
       for _ in range(3):
         self.step_sim_and_render()
     self.gripper.release()
@@ -442,10 +506,26 @@ class PickPlaceEnv():
       self.movep(place_xyz)
       self.step_sim_and_render()
       ee_xyz = self.get_ee_pos()
+      steps += 1
+      if steps > self.max_steps:
+        print("max steps reached while moving to hover position after place")
+        observation = self.get_observation()
+        reward = self.get_reward()
+        done = False
+        info = {}
+        return observation, reward, done, info
+
     place_xyz = np.float32([0, -0.5, 0.2])
     while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
       self.movep(place_xyz)
       self.step_sim_and_render()
+      if steps > self.max_steps:
+        print("max steps reached while moving to default position after place")
+        observation = self.get_observation()
+        reward = self.get_reward()
+        done = False
+        info = {}
+        return observation, reward, done, info
       ee_xyz = self.get_ee_pos()
 
     observation = self.get_observation()
@@ -493,26 +573,32 @@ class PickPlaceEnv():
   def get_observation(self):
     observation = {}
 
-    # Render current image.
-    color, depth, position, orientation, intrinsics = self.render_image()
 
-    # Get heightmaps and colormaps.
-    points = self.get_pointcloud(depth, intrinsics)
-    position = np.float32(position).reshape(3, 1)
-    rotation = pybullet.getMatrixFromQuaternion(orientation)
-    rotation = np.float32(rotation).reshape(3, 3)
-    transform = np.eye(4)
-    transform[:3, :] = np.hstack((rotation, position))
-    points = self.transform_pointcloud(points, transform)
-    heightmap, colormap, xyzmap = self.get_heightmap(points, color, BOUNDS, PIXEL_SIZE)
+    if self.render:
+      # Render current image.
+      color, depth, position, orientation, intrinsics = self.render_image()
 
-    observation["image"] = colormap
-    observation["xyzmap"] = xyzmap
+      # Get heightmaps and colormaps.
+      points = self.get_pointcloud(depth, intrinsics)
+      position = np.float32(position).reshape(3, 1)
+      rotation = pybullet.getMatrixFromQuaternion(orientation)
+      rotation = np.float32(rotation).reshape(3, 3)
+      transform = np.eye(4)
+      transform[:3, :] = np.hstack((rotation, position))
+      points = self.transform_pointcloud(points, transform)
+      heightmap, colormap, xyzmap = self.get_heightmap(points, color, BOUNDS, PIXEL_SIZE)
+
+      observation["image"] = colormap
+      observation["xyzmap"] = xyzmap
+    
+    else:
+      observation["image"] = None
+      observation["xyzmap"] = None
 
     return observation
 
   def render_image(self, image_size=(720, 720), intrinsics=(360., 0, 360., 0, 360., 360., 0, 0, 1)):
-
+    print("rendering image")
     # Camera parameters.
     position = (0, -0.85, 0.4)
     orientation = (np.pi / 4 + np.pi / 48, np.pi, np.pi)

@@ -5,10 +5,11 @@ import numpy as np
 import pybullet
 from PPO import PPO
 import yaml
-
+import os
 
 def read_one_block_of_yaml_data(filename):
-    with open(f'/homes/shukla/Work/LSTS/LSTS/{filename}.yaml','r') as f:
+    project_path = os.path.dirname(os.path.abspath(__file__))
+    with open(f'{project_path}/{filename}.yaml','r') as f:
         output = yaml.safe_load(f)
     return output 
     
@@ -42,7 +43,10 @@ block_list = ['blue block', 'red block', 'green block','yellow block']
 wrapped_env.pick(block_list[0])
 pybullet.disconnect()
 env2 = PickPlaceEnv(render=False, high_res=high_resolution, high_frame_rate=high_frame_rate)
-rl_env = PickPlaceRLEnv(env=env2, reset_to_state=True, state=states)
+rl_env = PickPlaceRLEnv(env=env2, reset_to_state=True, state=states, 
+                        type_of_failure="Object not pickup-able", 
+                        target_object="blue block", 
+                        object_list=obj_list)
 rl_env.reset()
 print("get obj pose:", rl_env.get_obj_pos(block_list[0]))
 print("get obj pose:", rl_env.get_obj_pos(bowl_list[0]))
@@ -75,9 +79,9 @@ lr_critic = params['ppo']['lr_critic']      # learning rate for critic network
 
 ppo_agent = PPO(state_space_dim, total_number_of_actions_for_RL_env, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std)
 
-for i in range(100):
-    print("Step: ", i)
-    rl_env.step(new_ee_pose)
+# for i in range(100):
+#     print("Step: ", i)
+#     rl_env.step(new_ee_pose)
 
 
 
@@ -92,14 +96,15 @@ while True:
     # training loop
     while episodes_in_current_iter <= episodes_in_each_iter:
 
-        state = env.reset()
+        state = rl_env.reset()
         current_ep_reward = 0
         print_avg_reward = 0
 
         for t in range(1, max_ep_len+1):
 
-            action = ppo_agent.select_action(state)    
-            state, reward, done, info = env.step(action)
+            action = ppo_agent.select_action(state)
+            # print("action: ", action)
+            state, reward, done, info = rl_env.step(action)
 
             # saving reward and is_terminals
             ppo_agent.buffer.rewards.append(reward)
@@ -117,6 +122,7 @@ while True:
 
             # update PPO agent
             if timesteps_in_current_iter % update_timestep == 0:
+                print("updating PPO agent")
                 ppo_agent.update()
 
             # printing average reward
@@ -135,7 +141,7 @@ while True:
             if done:
                 episodes_in_current_iter += 1
                 break
-
+        print("episode : ", episodes_in_current_iter, "reward : ", current_ep_reward)
         if len(done_arr) > 100 and np.mean(done_arr[-100:]) > 0.8:
             print("saving converged model at : " + "path")
             ppo_agent.save("path")
