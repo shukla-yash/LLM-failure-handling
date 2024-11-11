@@ -6,6 +6,8 @@ import pybullet
 from PPO import PPO
 import yaml
 import os
+from utils import logger
+from pathlib import Path
 
 def read_one_block_of_yaml_data(filename):
     project_path = os.path.dirname(os.path.abspath(__file__))
@@ -20,11 +22,12 @@ num_bowls = 4
 high_resolution = False
 high_frame_rate = False
 
-ALL_BLOCKS = ['blue block', 'red block', 'green block','yellow block']
+ALL_BLOCKS = ['blue block', 'red block', 'green block','yellow block', 'orange block']
 ALL_BOWLS = ['blue bowl', 'yellow bowl', 'brown bowl', 'gray bowl']
 
-block_list = ['blue block', 'red block', 'green block','yellow block']
+block_list = ['blue block', 'red block', 'green block','yellow block', 'orange block']
 bowl_list = np.random.choice(ALL_BOWLS, size=num_bowls, replace=False).tolist()
+bowl_list = []
 
 obj_list = block_list + bowl_list
 
@@ -32,24 +35,39 @@ env = PickPlaceEnv(render=False, high_res=high_resolution, high_frame_rate=high_
 wrapped_env = ObjectGraspFailureWrapper(env)
 
 wrapped_env.reset(object_list=obj_list, 
-              obj_which_fails='blue block')
+              obj_which_fails='blue block', 
+              obstructing_object = ['orange block', 'red block', 'green block','yellow block'])
 
 states = wrapped_env.get_state()
 print("get obj pose:", wrapped_env.get_obj_pos(block_list[0]))
-print("get obj pose:", wrapped_env.get_obj_pos(bowl_list[0]))
+# print("get obj pose:", wrapped_env.get_obj_pos(bowl_list[0]))
 
-block_list = ['blue block', 'red block', 'green block','yellow block']
 
 wrapped_env.pick(block_list[0])
-pybullet.disconnect()
-env2 = PickPlaceEnv(render=False, high_res=high_resolution, high_frame_rate=high_frame_rate)
-rl_env = PickPlaceRLEnv(env=env2, reset_to_state=True, state=states, 
+# pybullet.disconnect()
+# env2 = PickPlaceEnv(render=False, high_res=high_resolution, high_frame_rate=high_frame_rate)
+rl_env = PickPlaceRLEnv(env=wrapped_env, reset_to_state=True, state=states, 
                         type_of_failure="Object not pickup-able", 
                         target_object="blue block", 
                         object_list=obj_list)
 rl_env.reset()
 print("get obj pose:", rl_env.get_obj_pos(block_list[0]))
-print("get obj pose:", rl_env.get_obj_pos(bowl_list[0]))
+# print("get obj pose:", rl_env.get_obj_pos(bowl_list[0]))
+
+# for debugging
+rl_env.pick(block_list[0])
+rl_env.putdown(block_list[0])
+rl_env.pick(block_list[1])
+rl_env.putdown(block_list[1])
+rl_env.reset()
+rl_env.pick(block_list[2])
+rl_env.putdown(block_list[2])
+rl_env.pick(block_list[3])
+rl_env.putdown(block_list[3])
+rl_env.pick(block_list[4])
+rl_env.putdown(block_list[4])
+rl_env.pick(block_list[0])
+rl_env.putdown(block_list[0])
 
 ee_pose = rl_env.get_ee_pos()
 new_ee_pose = np.array(ee_pose) + np.array([0.1, 0.1, 0.1])
@@ -70,6 +88,7 @@ action_std_decay_freq = params['env']['action_std_decay_freq']  # action_std dec
 episodes_in_each_iter = params['training']['episodes_in_each_iter']
 ################ PPO hyperparameters ################
 update_timestep = params['ppo']['update_timestep']      # update policy every n timesteps
+update_episode = params['ppo']['update_episode']       # update policy every n episodes
 has_continuous_action_space = params['env']['has_continuous_action_space']  # continuous action space; else discrete
 K_epochs = params['ppo']['K_epochs']          # update policy for K epochs in one PPO update
 eps_clip = params['ppo']['eps_clip']       # clip parameter for PPO
@@ -84,10 +103,15 @@ ppo_agent = PPO(state_space_dim, total_number_of_actions_for_RL_env, lr_actor, l
 #     rl_env.step(new_ee_pose)
 
 
+proj_path = os.path.dirname(os.path.abspath(__file__))
+log_path = proj_path + "/logs"
+log_path = Path(log_path)
+model_path = proj_path + "/models"
+my_logger = logger.Logger(path=log_path, run_name="test-1", step=0)
+total_episodes = 0
+max_epochs = 100
 
-
-
-while True:
+for _ in range(max_epochs):
     episodes_in_current_iter = 0
     timesteps_in_current_iter = 0
     done_arr = []
@@ -108,22 +132,20 @@ while True:
 
             # saving reward and is_terminals
             ppo_agent.buffer.rewards.append(reward)
-            if done:
+            if done or t == max_ep_len:
                 ppo_agent.buffer.is_terminals.append(True)
                 done_arr.append(1)
-                reward_arr.append(current_ep_reward)                
+                reward_arr.append(current_ep_reward) 
+                my_logger.scalar("reward", current_ep_reward)               
             else:
                 ppo_agent.buffer.is_terminals.append(False)
-                done_arr.append(0)
-                reward_arr.append(current_ep_reward)
+                # done_arr.append(0)
+                # reward_arr.append(current_ep_reward)
 
             current_ep_reward += reward
             timesteps_in_current_iter +=1
 
-            # update PPO agent
-            if timesteps_in_current_iter % update_timestep == 0:
-                print("updating PPO agent")
-                ppo_agent.update()
+
 
             # printing average reward
             if timesteps_in_current_iter % print_freq == 0:
@@ -133,16 +155,32 @@ while True:
             if timesteps_in_current_iter % save_model_freq == 0:
                 print("--------------------------------------------------------------------------------------------")
                 print("saving model at : " + "path")
-                ppo_agent.save("path")
+                ppo_agent.save(model_path)
                 print("model saved")
                 print("--------------------------------------------------------------------------------------------")
 
+
             # break; if the episode is over
-            if done:
+            if done or t == max_ep_len:
                 episodes_in_current_iter += 1
+                total_episodes += 1
+                # log if log_freq is reached
+                if total_episodes % log_freq == 0:
+                    my_logger.write(step=total_episodes)
+                            # update PPO agent
+                if total_episodes % update_episode == 0:
+                    print("updating PPO agent")
+                    ppo_agent.update()
                 break
-        print("episode : ", episodes_in_current_iter, "reward : ", current_ep_reward)
-        if len(done_arr) > 100 and np.mean(done_arr[-100:]) > 0.8:
+        print("episode : ", total_episodes, "reward : ", current_ep_reward)
+        # if len(done_arr) > 100 and np.mean(done_arr[-100:]) > 0.8:
+        #     print("saving converged model at : " + "path")
+        #     ppo_agent.save("path")
+        #     is_task_leared =True
+        #     break
+
+        # check for convergence
+        if len(reward_arr) > 100 and np.mean(reward_arr[-100:]) > 80:
             print("saving converged model at : " + "path")
             ppo_agent.save("path")
             is_task_leared =True

@@ -59,7 +59,13 @@ class PickPlaceRLEnv(Env, Wrapper):
         if self.reset_to_state:
             object_list = list(self.state.keys())
             # reset the environment using object_list
-            self.env.reset(object_list=object_list)
+            
+            # TODO: add reset for other types of failures
+            if self.type_of_failure == 'Object not pickup-able':
+                self.env.set_skip_reset(True)
+                self.env.reset(object_list=object_list, obj_which_fails=self.target_object)
+            else:
+                self.env.reset(object_list=object_list)
 
             # set the position and orientation of the objects
             for obj_name in object_list:
@@ -70,8 +76,12 @@ class PickPlaceRLEnv(Env, Wrapper):
         
         else:
             object_list = self.object_list
-            self.env.reset(object_list=object_list)
+            if self.type_of_failure == 'Object not pickup-able':
+                self.env.reset(object_list=object_list, obj_which_fails=self.target_object)
+            else:
+                self.env.reset(object_list=object_list)
 
+        self.get_observation()
         obs = self.get_observation()
         self.episodic_timesteps = 0
 

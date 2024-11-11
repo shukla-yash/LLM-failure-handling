@@ -11,9 +11,10 @@ env:
   min_action_std : 0.1                # minimum action_std (stop decay after action_std <= min_action_std)
   action_std_decay_freq : 250000  # action_std decay frequency (in num timesteps)
   random_seed : 0
+  log_freq : 20
 
 ppo:
-  update_episode : 4      # update policy every n timesteps
+  update_episode : 10      # update policy every n timesteps
   update_timestep : 400
   K_epochs : 15               # update policy for K epochs in one PPO update
   eps_clip : 0.2          # clip parameter for PPO
