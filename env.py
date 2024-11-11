@@ -475,13 +475,14 @@ class PickPlaceEnv():
       random_empty_pos_candidate = [np.random.uniform(-0.28, 0.28), np.random.uniform(-0.75, -0.25), 0.15]
       total_objects_far = 0
       for pos in obj_pos:
-        if abs(random_empty_pos_candidate[0] - pos[0]) > 0.07 and abs(random_empty_pos_candidate[0] - pos[0]) > 0.07:
+        # if abs(random_empty_pos_candidate[0] - pos[0]) > 0.07 and abs(random_empty_pos_candidate[1] - pos[1]) > 0.07:
+        if np.linalg.norm(random_empty_pos_candidate[:2] - pos[:2]) > 0.07:
           total_objects_far += 1
       if total_objects_far == len(obj_pos):
         empty_position = random_empty_pos_candidate.copy()
         break 
       num_choose_times += 1
-      if num_choose_times > 100:
+      if num_choose_times > 300:
         print("cannot find empty position to place object")
         self.gripper.release()
         observation = self.get_observation()
