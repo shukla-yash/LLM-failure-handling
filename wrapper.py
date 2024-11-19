@@ -430,8 +430,8 @@ class ObjectGraspFailureWrapper(Wrapper):
                 obstructing_obj_pos, _ = pybullet.getBasePositionAndOrientation(obj_id)
                 distance = np.linalg.norm(np.array(fail_obj_pos) - np.array(obstructing_obj_pos))
 
-                if distance < 0.07:
-                    print(f"{obj_to_pick} cannot be picked!")
+                if distance < 0.05:
+                    # print(f"{obj_to_pick} cannot be picked!")
                     return False
 
 

@@ -48,14 +48,16 @@ class PickPlaceRLEnv(Env, Wrapper):
             self.action_mapping[i] = partial(self.env.pick, self.object_list[i])
 
             # self.action_mapping[i+total_number_of_objects] = self.env.putdown(total_number_of_objects[i])
-            self.action_mapping[i+total_number_of_objects] = partial(self.env.putdown, self.object_list[i])
+            # self.action_mapping[i+total_number_of_objects] = partial(self.env.putdown, self.object_list[i])
+        self.action_mapping[i+1] = partial(self.env.putdown, "all objects")
+
         self.total_number_of_actions = len(self.action_mapping.keys())
 
     def reset(self) -> dict:
         '''
         Reset the environment using the state_id
         '''
-
+        # print("environment resetting")
         if self.reset_to_state:
             object_list = list(self.state.keys())
             # reset the environment using object_list
@@ -90,6 +92,10 @@ class PickPlaceRLEnv(Env, Wrapper):
     def step(self, action: Any):
 
         # take the action
+        action_name = self.action_mapping[action]
+        function_name = action_name.func.__name__
+        object_name = action_name.args[0]
+        # print("ACTION IS: ", function_name, " ",  object_name)
         self.action_mapping[action]()
         
         # step the simulation
@@ -143,5 +149,13 @@ class PickPlaceRLEnv(Env, Wrapper):
 
     def get_observation(self):
         obj_pos = self.env.get_object_positions()
-        obj_pos = np.array(obj_pos).flatten()
+        obj_pos = np.array(obj_pos)[:, :2].flatten()   ## Ignore the 'z' axis
+        # obj_pos = np.array(obj_pos).flatten()   ## Do not ignore the 'z' axis
+
+        if self.env.hand_empty():
+            obj_pos = np.append(obj_pos, 0)
+            # obj_pos.append(0)
+        else:
+            obj_pos = np.append(obj_pos, 1)
+            # obj_pos.append(1)
         return obj_pos

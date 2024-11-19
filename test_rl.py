@@ -74,7 +74,7 @@ new_ee_pose = np.array(ee_pose) + np.array([0.1, 0.1, 0.1])
 
 
 total_number_of_actions_for_RL_env = rl_env.total_number_of_actions
-state_space_dim = 3*len(obj_list)
+state_space_dim = 2*len(obj_list) + 1
 
 max_ep_len = params['env']['max_ep_len']                   # max timesteps in one episode
 max_training_timesteps = params['env']['max_training_timesteps']   # break training loop if timeteps > max_training_timesteps
@@ -85,7 +85,7 @@ action_std = params['env']['action_std']                    # starting std for a
 action_std_decay_rate = params['env']['action_std_decay_rate']        # linearly decay action_std (action_std = action_std - action_std_decay_rate)
 min_action_std = params['env']['min_action_std']                # minimum action_std (stop decay after action_std <= min_action_std)
 action_std_decay_freq = params['env']['action_std_decay_freq']  # action_std decay frequency (in num timesteps)
-episodes_in_each_iter = params['training']['episodes_in_each_iter']
+total_number_of_episodes = params['training']['total_number_of_episodes']
 ################ PPO hyperparameters ################
 update_timestep = params['ppo']['update_timestep']      # update policy every n timesteps
 update_episode = params['ppo']['update_episode']       # update policy every n episodes
@@ -111,77 +111,67 @@ my_logger = logger.Logger(path=log_path, run_name="test-1", step=0)
 total_episodes = 0
 max_epochs = 100
 
-for _ in range(max_epochs):
-    episodes_in_current_iter = 0
-    timesteps_in_current_iter = 0
-    done_arr = []
-    reward_arr = []
+# for _ in range(max_epochs):
+current_episode_number = 0
+timesteps_in_current_iter = 0
+done_arr = []
+reward_arr = []
 
-    # training loop
-    while episodes_in_current_iter <= episodes_in_each_iter:
+# training loop
+while current_episode_number <= total_number_of_episodes:
 
-        state = rl_env.reset()
-        current_ep_reward = 0
-        print_avg_reward = 0
+    state = rl_env.reset()
+    current_ep_reward = 0
+    print_avg_reward = 0
 
-        for t in range(1, max_ep_len+1):
+    for t in range(1, max_ep_len+1):
 
-            action = ppo_agent.select_action(state)
-            # print("action: ", action)
-            state, reward, done, info = rl_env.step(action)
+        action = ppo_agent.select_action(state)
+        # print("action: ", action)
+        state, reward, done, info = rl_env.step(action)
 
-            # saving reward and is_terminals
-            ppo_agent.buffer.rewards.append(reward)
-            if done or t == max_ep_len:
-                ppo_agent.buffer.is_terminals.append(True)
+        current_ep_reward += reward
+        timesteps_in_current_iter +=1
+
+        # saving reward and is_terminals
+        ppo_agent.buffer.rewards.append(reward)
+        if done or t == max_ep_len:
+            ppo_agent.buffer.is_terminals.append(True)
+            if done:
                 done_arr.append(1)
-                reward_arr.append(current_ep_reward) 
-                my_logger.scalar("reward", current_ep_reward)               
             else:
-                ppo_agent.buffer.is_terminals.append(False)
-                # done_arr.append(0)
-                # reward_arr.append(current_ep_reward)
+                done_arr.append(0)
+            reward_arr.append(current_ep_reward) 
+            my_logger.scalar("reward", current_ep_reward)               
+            print("Episode : {} \t\t Timestep : {} \t\t Average Reward : {}".format(current_episode_number, timesteps_in_current_iter, np.mean(reward_arr[-50:])))
+        else:
+            ppo_agent.buffer.is_terminals.append(False)
 
-            current_ep_reward += reward
-            timesteps_in_current_iter +=1
-
-
-
-            # printing average reward
-            if timesteps_in_current_iter % print_freq == 0:
-                print("Episode : {} \t\t Timestep : {} \t\t Average Reward : {}".format(episodes_in_current_iter, timesteps_in_current_iter, np.mean(reward_arr[-50:])))
-
-            # save model weights
-            if timesteps_in_current_iter % save_model_freq == 0:
-                print("--------------------------------------------------------------------------------------------")
-                print("saving model at : " + "path")
-                ppo_agent.save(model_path)
-                print("model saved")
-                print("--------------------------------------------------------------------------------------------")
+        # save model weights
+        if timesteps_in_current_iter % save_model_freq == 0:
+            print("--------------------------------------------------------------------------------------------")
+            print("saving model at : " + "path")
+            ppo_agent.save(model_path)
+            print("model saved")
+            print("--------------------------------------------------------------------------------------------")
 
 
-            # break; if the episode is over
-            if done or t == max_ep_len:
-                episodes_in_current_iter += 1
-                total_episodes += 1
-                # log if log_freq is reached
-                if total_episodes % log_freq == 0:
-                    my_logger.write(step=total_episodes)
-                            # update PPO agent
-                if total_episodes % update_episode == 0:
-                    print("updating PPO agent")
-                    ppo_agent.update()
-                break
-        print("episode : ", total_episodes, "reward : ", current_ep_reward)
-        # if len(done_arr) > 100 and np.mean(done_arr[-100:]) > 0.8:
-        #     print("saving converged model at : " + "path")
-        #     ppo_agent.save("path")
-        #     is_task_leared =True
-        #     break
-
-        # check for convergence
-        if len(reward_arr) > 100 and np.mean(reward_arr[-100:]) > 80:
-            print("saving converged model at : " + "path")
-            ppo_agent.save("path")
-            is_task_leared =True
+        # break; if the episode is over
+        if done or t == max_ep_len:
+            current_episode_number += 1
+            total_episodes += 1
+            # log if log_freq is reached
+            if total_episodes % log_freq == 0:
+                my_logger.write(step=total_episodes)
+                        # update PPO agent
+            if total_episodes % update_episode == 0:
+                print("updating PPO agent")
+                ppo_agent.update()
             break
+
+    # check for convergence
+    if len(reward_arr) > 100 and np.mean(done_arr[-100:]) > 0.85 and np.mean(reward_arr[-100:]) > 70 :
+        print("saving converged model at : " + "path")
+        ppo_agent.save("path")
+        is_task_leared =True
+        break

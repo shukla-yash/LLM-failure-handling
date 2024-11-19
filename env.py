@@ -154,7 +154,7 @@ class Robotiq2F85:
 
 class PickPlaceEnv():
 
-  def __init__(self, render=False, high_res=False, high_frame_rate=False, max_steps=2000):
+  def __init__(self, render=False, high_res=False, high_frame_rate=False, max_steps=5000):
     self.render = render
     self.dt = 1/480
     self.sim_step = 0
