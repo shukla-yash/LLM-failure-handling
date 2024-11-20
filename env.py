@@ -6,6 +6,7 @@ import threading
 import copy
 import cv2
 from time import sleep
+from utils.transform_utils import correct_quaternion_ignore_roll
     
 # # Global constants: pick and place objects, colors, workspace bounds
 COLORS = {
@@ -153,7 +154,7 @@ class Robotiq2F85:
 
 class PickPlaceEnv():
 
-  def __init__(self, render=False, high_res=False, high_frame_rate=False, max_steps=2000):
+  def __init__(self, render=False, high_res=False, high_frame_rate=False, max_steps=5000):
     self.render = render
     self.dt = 1/480
     self.sim_step = 0
@@ -284,6 +285,15 @@ class PickPlaceEnv():
         maxNumIterations=100)
     self.servoj(joints)
 
+  def move_with_ee(self, position, orientation):
+    joints = pybullet.calculateInverseKinematics(
+        bodyUniqueId=self.robot_id,
+        endEffectorLinkIndex=self.tip_link_id,
+        targetPosition=position,
+        targetOrientation=orientation,
+        maxNumIterations=100)
+    self.servoj(joints)
+
   def get_ee_pos(self):
     ee_xyz = np.float32(pybullet.getLinkState(self.robot_id, self.tip_link_id)[0])
     return ee_xyz
@@ -291,6 +301,7 @@ class PickPlaceEnv():
   def pick(self, obj_to_pick):
     """Do pick and place motion primitive."""
 
+    self.gripper.release()
     steps = 0
 
     if not self.locate(obj_to_pick):
@@ -301,6 +312,15 @@ class PickPlaceEnv():
       return False
 
     pick_pos = self.get_obj_pos(obj_to_pick).copy()
+    obj_orn = self.get_obj_orn(obj_to_pick).copy()
+    # we only care about the z , since the cube might be rotated
+    obj_orn = correct_quaternion_ignore_roll(obj_orn)
+
+    # add home_ee_euler to the orientation
+
+    home_quat = pybullet.getQuaternionFromEuler(self.home_ee_euler)
+    pick_orn = pybullet.multiplyTransforms([0, 0, 0], home_quat, [0, 0, 0], obj_orn)[1]
+
 
     pick_z = pick_pos[2] + 0.005
     # Set fixed primitive z-heights.
@@ -314,7 +334,8 @@ class PickPlaceEnv():
     # Move to object.
     ee_xyz = self.get_ee_pos()
     while np.linalg.norm(hover_xyz - ee_xyz) > 0.01:
-      self.movep(hover_xyz)
+      # self.movep(hover_xyz)
+      self.move_with_ee(hover_xyz, pick_orn)
       self.step_sim_and_render()
       ee_xyz = self.get_ee_pos()
       steps += 1
@@ -323,7 +344,8 @@ class PickPlaceEnv():
         return False
 
     while np.linalg.norm(pick_xyz - ee_xyz) > 0.01:
-      self.movep(pick_xyz)
+      # self.movep(pick_xyz)
+      self.move_with_ee(pick_xyz, pick_orn)
       self.step_sim_and_render()
       ee_xyz = self.get_ee_pos()
       steps += 1
@@ -342,6 +364,8 @@ class PickPlaceEnv():
       steps += 1
       if steps > self.max_steps:
         print("max steps reached while moving to hover position after pick")
+        # release the object
+        self.gripper.release()
         return False
     
     for _ in range(50):
@@ -451,14 +475,16 @@ class PickPlaceEnv():
       random_empty_pos_candidate = [np.random.uniform(-0.28, 0.28), np.random.uniform(-0.75, -0.25), 0.15]
       total_objects_far = 0
       for pos in obj_pos:
-        if abs(random_empty_pos_candidate[0] - pos[0]) > 0.07 and abs(random_empty_pos_candidate[0] - pos[0]) > 0.07:
+        # if abs(random_empty_pos_candidate[0] - pos[0]) > 0.07 and abs(random_empty_pos_candidate[1] - pos[1]) > 0.07:
+        if np.linalg.norm(random_empty_pos_candidate[:2] - pos[:2]) > 0.07:
           total_objects_far += 1
       if total_objects_far == len(obj_pos):
         empty_position = random_empty_pos_candidate.copy()
         break 
       num_choose_times += 1
-      if num_choose_times > 100:
+      if num_choose_times > 300:
         print("cannot find empty position to place object")
+        self.gripper.release()
         observation = self.get_observation()
         reward = self.get_reward()
         done = False
@@ -519,6 +545,7 @@ class PickPlaceEnv():
     while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
       self.movep(place_xyz)
       self.step_sim_and_render()
+      steps += 1
       if steps > self.max_steps:
         print("max steps reached while moving to default position after place")
         observation = self.get_observation()
@@ -598,7 +625,7 @@ class PickPlaceEnv():
     return observation
 
   def render_image(self, image_size=(720, 720), intrinsics=(360., 0, 360., 0, 360., 360., 0, 0, 1)):
-    print("rendering image")
+    # print("rendering image")
     # Camera parameters.
     position = (0, -0.85, 0.4)
     orientation = (np.pi / 4 + np.pi / 48, np.pi, np.pi)
@@ -799,6 +826,13 @@ class PickPlaceEnv():
       pose = pybullet.getBasePositionAndOrientation(pick_id)
       position = np.float32(pose[0])
     return position
+  
+  def get_obj_orn(self, obj_name):
+    obj_name = obj_name.replace('the', '').replace('_', ' ').strip()
+    pick_id = self.get_obj_id(obj_name)
+    pose = pybullet.getBasePositionAndOrientation(pick_id)
+    orn = np.float32(pose[1])
+    return orn
   
   def get_bounding_box(self, obj_name):
     obj_id = self.get_obj_id(obj_name)

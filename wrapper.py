@@ -309,6 +309,7 @@ class ObjectGraspFailureWrapper(Wrapper):
         super().__init__(env)
         self.halfExtents_cube = [0.02, 0.02, 0.02]
         self.halfExtents_bowl = [0.04, 0.04, 0.04]
+        self.skip_reset = False
     
     def reset(self, 
             object_list: List[str], 
@@ -321,7 +322,8 @@ class ObjectGraspFailureWrapper(Wrapper):
             obj_which_fails: object which fails to be picked or placed
             obstructing_object: object which obstructs the obj_which_fails
         '''
-
+        if self.skip_reset:
+            return self.env.get_observation()
         if not obj_which_fails:
             print("obj_which_fails not provided, resetting the environment without any failures")
             return self.env.reset(object_list)
@@ -330,17 +332,20 @@ class ObjectGraspFailureWrapper(Wrapper):
 
         # if obstructing_object is not provided, randomly select 4 objects to obstruct the obj_which_fails
         if not obstructing_object or len(obstructing_object) != 4:
-            print("not enough obstructing objects provided, randomly selecting 4 objects")
+            # print("not enough obstructing objects provided, randomly selecting 4 objects")
             obstructing_object = np.random.choice([obj for obj in object_list if obj != obj_which_fails], 4, replace=False)
 
         # check whether thr obj_which_fails and obstructing_object are present in the scene
         assert obj_which_fails in object_list, f"{obj_which_fails} not in object_list"
+
         for obj in obstructing_object:
             assert obj in object_list, f"{obj} not in object_list"
         # get the object id of the obstructing object
         obstructing_obj_ids = [self.env.obj_name_to_id[obj] for obj in obstructing_object]
+        self.obstructing_obj_ids = obstructing_obj_ids
 
         # get the position and orientation of the obj_which_fails
+        self.obj_which_fails = obj_which_fails
         fail_obj_id = self.env.obj_name_to_id[obj_which_fails]
         fail_obj_pos, fail_obj_orn = pybullet.getBasePositionAndOrientation(fail_obj_id)
         fail_obj_pos = np.array(fail_obj_pos)
@@ -362,15 +367,123 @@ class ObjectGraspFailureWrapper(Wrapper):
                 raise ValueError(f"object type {obstructing_object[idx].split(' ')[1]} not supported")
         # calculate the positions of the obstructing objects
         obstructing_obj_pos = [fail_obj_pos + np.dot(fail_obj_rot, displacement) for displacement in displacement_object_frame]
-        print("obstructing_obj_pos:", obstructing_obj_pos)
+
+        # calculate the orientations of the obstructing objects
+        rotations = [np.pi / 2, -np.pi / 2, 0, 0]
+        # add rotation to the orientation of the obj_which_fails
+        fail_obj_rot = R.from_quat(fail_obj_orn).as_matrix()
+        obstructing_obj_rot = [np.dot(fail_obj_rot, R.from_euler('z', rot).as_matrix()) for rot in rotations]
+
+        # roll the obstructing objects by 90 degrees
+        # roll = np.pi / 2  
+        # obstructing_obj_rot = [np.dot(rot, R.from_euler('x', roll).as_matrix()) for rot in obstructing_obj_rot]
+        obstructing_obj_orn = [R.from_matrix(rot).as_quat() for rot in obstructing_obj_rot]
+
+        
+        # print("obstructing_obj_pos:", obstructing_obj_pos)
         # move the obstructing objects to the calculated positions
-        for obj_id, pos in zip(obstructing_obj_ids, obstructing_obj_pos):
-            pybullet.resetBasePositionAndOrientation(obj_id, pos, fail_obj_orn)
+        for obj_id, pos, orn in zip(obstructing_obj_ids, obstructing_obj_pos, obstructing_obj_orn):
+            pybullet.resetBasePositionAndOrientation(obj_id, pos, orn)
+
+        # make the target object ungraspable
+        # self.make_target_ungraspable()
+        self.target_ungraspable = True
 
         # step the simulation
-        for _ in range(10):
+        for _ in range(20):
             pybullet.stepSimulation()
         return self.env.get_observation()
+    
+    def make_target_ungraspable(self):
+        '''
+        Make the target object ungraspable if it is obstructed by changing the mass
+        '''
+        print("making the target object ungraspable")
+        fail_obj_id = self.env.obj_name_to_id[self.obj_which_fails]
+        pybullet.changeDynamics(fail_obj_id, -1, mass=10)
+
+    def reset_target_graspable(self):
+        '''
+        Reset the target object to be graspable by changing the mass
+        '''
+        print("resetting the target object to be graspable")
+        fail_obj_id = self.env.obj_name_to_id[self.obj_which_fails]
+        pybullet.changeDynamics(fail_obj_id, -1, mass=0.01)
+
+    def pick(self, obj_to_pick):
+        '''
+        modified pick function that makes the target object ungraspable if it is obstructed
+        '''
+        if not self.hand_empty():
+            # print("hand not empty, cannot pick")
+            return False
+
+        if obj_to_pick == self.obj_which_fails:
+            fail_obj_id = self.env.obj_name_to_id[self.obj_which_fails]
+            fail_obj_pos, _ = pybullet.getBasePositionAndOrientation(fail_obj_id)
+
+            object_clear_flag = True
+
+            obj_ids = [self.env.obj_name_to_id[obj] for obj in self.env.object_list if obj != self.obj_which_fails]
+
+            for obj_id in obj_ids:
+                obstructing_obj_pos, _ = pybullet.getBasePositionAndOrientation(obj_id)
+                distance = np.linalg.norm(np.array(fail_obj_pos) - np.array(obstructing_obj_pos))
+
+                if distance < 0.05:
+                    # print(f"{obj_to_pick} cannot be picked!")
+                    return False
+
+
+        return self.env.pick(obj_to_pick)
+
+    def putdown(self, obj_to_place = None):
+        if self.hand_empty():
+            # print("hand empty, skipping putdown")
+            observation = self.get_observation()
+            reward = self.get_reward()
+            done = False
+            info = {}
+        return self.env.putdown(obj_to_place)
+    
+    def set_skip_reset(self, skip: bool):
+        self.skip_reset = skip
+            
+    
+    # def step_sim_and_render(self):
+    #     '''
+    #     a modified step simulation function that makes the target object ungraspable if it is obstructed
+    #     '''
+    #     # check if the target object is obstructed
+    #     # check the distance between target object and obstructing objects
+
+    #     fail_obj_id = self.env.obj_name_to_id[self.obj_which_fails]
+    #     fail_obj_pos, _ = pybullet.getBasePositionAndOrientation(fail_obj_id)
+
+    #     object_clear_flag = True
+
+    #     obj_ids = [self.env.obj_name_to_id[obj] for obj in self.env.object_list if obj != self.obj_which_fails]
+
+    #     for obj_id in obj_ids:
+    #         obstructing_obj_pos, _ = pybullet.getBasePositionAndOrientation(obj_id)
+    #         distance = np.linalg.norm(np.array(fail_obj_pos) - np.array(obstructing_obj_pos))
+
+    #         if distance < 0.07:
+    #             object_clear_flag = False
+    #             break
+    #     if object_clear_flag:
+    #         print("object clear")
+    #     # make the target object ungraspable if it is obstructed
+    #     if object_clear_flag and self.target_ungraspable:
+    #         self.reset_target_graspable()
+    #         self.target_ungraspable = False
+
+    #     # make the target object graspable if it is not obstructed
+    #     elif not object_clear_flag and not self.target_ungraspable:
+    #         self.make_target_ungraspable()
+    #         self.target_ungraspable = True
+        
+    #     return super().step_sim_and_render()
 
 class ObjectNotReachableWrapper(Wrapper):
 
