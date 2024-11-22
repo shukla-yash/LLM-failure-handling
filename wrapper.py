@@ -494,8 +494,10 @@ class ObjectNotReachableWrapper(Wrapper):
     def __init__(self, env, 
                  ) -> None:
         super().__init__(env)
+        self.create_tool()
         self.robot_working_distance = 0.75
         self.object_robot_distance_upper_limit = 1.0
+        self.fail_obj_id = None
 
     def reset(self,
               object_list: List[str],
@@ -510,11 +512,13 @@ class ObjectNotReachableWrapper(Wrapper):
             return self.env.reset(object_list)
 
         self.env.reset(object_list)
+        self.create_tool()
 
         assert obj_which_fails in self.env.object_list, f"{obj_which_fails} not in object_list"
 
         # get the object id of the obj_which_fails
         fail_obj_id = self.env.obj_name_to_id[obj_which_fails]
+        self.fail_obj_id = fail_obj_id
 
         # put the obj_which_fails at an unreachable position
         radius = np.random.uniform(self.robot_working_distance, self.object_robot_distance_upper_limit)
@@ -534,4 +538,92 @@ class ObjectNotReachableWrapper(Wrapper):
             pybullet.stepSimulation()
         
         return self.env.get_observation()
+    
+    def bring_closer(self):
+        '''
+        the action to bring the object closer to the robot
+        '''
 
+        # get the position of the object
+        fail_obj_pos, fail_obj_orn = pybullet.getBasePositionAndOrientation(self.fail_obj_id)
+
+        # get the radius and angle of the object
+        radius = np.linalg.norm(fail_obj_pos[:2])
+        angle = np.arctan2(fail_obj_pos[1], fail_obj_pos[0])
+
+        # sample a radius that is witnin 0.7 and not near other objects
+        step = 0
+        while True:
+            step += 1
+            if step > 100:
+                print("failed to bring the object closer")
+                return False
+
+            new_radius = np.random.uniform(0.1, 0.7)
+            total_objects_far = 0
+
+            # check if the new radius is not near other objects
+            for obj in self.env.object_list:
+                obj_id = self.env.obj_name_to_id[obj]
+                if obj_id == self.fail_obj_id:
+                    continue
+                obj_pos, _ = pybullet.getBasePositionAndOrientation(obj_id)
+                
+                new_target_pos = np.array([new_radius * np.cos(angle), new_radius * np.sin(angle), fail_obj_pos[2]])
+                distance = np.linalg.norm(new_target_pos - np.array(obj_pos))
+                if distance > 0.07:
+                    total_objects_far += 1
+            
+            if total_objects_far == len(self.env.object_list) - 1:
+                break
+
+        # move the object to the new position
+        new_target_pos = np.array([new_radius * np.cos(angle), new_radius * np.sin(angle), fail_obj_pos[2]])
+        pybullet.resetBasePositionAndOrientation(self.fail_obj_id, new_target_pos, fail_obj_orn)
+
+        # step the simulation 
+        for _ in range(10):
+            pybullet.stepSimulation()
+
+        return True
+
+    def create_tool(self):
+        basePosition = [0.3, 0, 0]
+        baseOrientation = [0, 0, 0, 1]
+        
+        connector_position = [0.3, 0.02, 0.015]
+        tip_position = [0.3, 0.34, 0]
+        # create a tool that can bring the object closer to the robot
+        cube_1 = pybullet.createCollisionShape(pybullet.GEOM_BOX, halfExtents=[0.02, 0.02, 0.02])
+        cube_2 = pybullet.createCollisionShape(pybullet.GEOM_BOX, halfExtents=[0.02, 0.02, 0.02])
+        cube_connection = pybullet.createCollisionShape(pybullet.GEOM_BOX, halfExtents=[0.01, 0.15, 0.01])
+
+        # tool_base  = p.createMultiBody(0.1, cube_1, -1, basePosition, baseOrientation)
+        # tool_connector = p.createMultiBody(0.1, cube_connection, -1, connector_position, baseOrientation)
+        # tool_tip = p.createMultiBody(0.1, cube_2, -1, tip_position, baseOrientation)
+
+        link_Masses = [0.1, 0.1, 0.1]
+        linkCollisionShapeIndices = [cube_1, cube_connection, cube_2]
+        linkVisualShapeIndices = [-1, -1, -1]
+        linkPositions = [[0, 0, 0], [0, 0.15, 0.015], [0, 0.3, 0]]
+        linkOrientations = [[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1]]
+        linkParentIndices = [0, 0, 0]
+        linkJointTypes = [pybullet.JOINT_FIXED, pybullet.JOINT_FIXED, pybullet.JOINT_FIXED]
+        linkInertialFramePositions = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+        linkInertialFrameOrientations = [[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1]]
+        linkJointAxis = [[0, 0, 1], [0, 0, 1], [0, 0, 1]]
+
+        tool = pybullet.createMultiBody(0.1, cube_1, -1, basePosition, baseOrientation,
+                                
+                                linkMasses=link_Masses,
+                                linkCollisionShapeIndices=linkCollisionShapeIndices,
+                                linkVisualShapeIndices=linkVisualShapeIndices,
+                                linkPositions=linkPositions,
+                                linkOrientations=linkOrientations,
+                                linkParentIndices=linkParentIndices,
+                                linkJointTypes=linkJointTypes, 
+                                linkInertialFramePositions=linkInertialFramePositions,
+                                linkInertialFrameOrientations=linkInertialFrameOrientations, 
+                                linkJointAxis=linkJointAxis)
+
+        return tool
