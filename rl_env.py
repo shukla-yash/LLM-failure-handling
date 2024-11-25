@@ -51,7 +51,9 @@ class PickPlaceRLEnv(Env, Wrapper):
             # self.action_mapping[i+total_number_of_objects] = partial(self.env.putdown, self.object_list[i])
         self.action_mapping[i+1] = partial(self.env.putdown, "all objects")
 
-        self.total_number_of_actions = len(self.action_mapping.keys())
+        self.action_dim = self.total_number_of_actions = len(self.action_mapping.keys())
+
+        self.state_space_dim = 2*total_number_of_objects + 1
 
     def reset(self) -> dict:
         '''

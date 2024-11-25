@@ -13,6 +13,7 @@ class Wrapper:
 
     def __init__(self, env):
         self.env = env
+        self.last_action = None
 
     @classmethod
     def class_name(cls):
@@ -66,6 +67,33 @@ class Wrapper:
             state[obj_name] = {"position": pos, "orientation": orn}
         
         return state
+    
+    def pick(self, obj_to_pick):
+        """
+        pick an object
+        args:
+            obj_to_pick: name of the object to pick
+        """
+        self.last_action = "pick"
+        return self.env.pick(obj_to_pick)
+    
+    def place(self, obj_to_place):
+        """
+        place an object
+        args:
+            obj_to_place: name of the object to place
+        """
+        self.last_action = "place"
+        return self.env.place(None, obj_to_place)
+
+    def putdown(self):
+        """
+        putdown an object
+        args:
+            obj_to_place: name of the object to place
+        """
+        self.last_action = "putdown"
+        return self.env.putdown(None)
     
     # def save_state(self, filename):
     #     """

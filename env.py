@@ -372,11 +372,11 @@ class PickPlaceEnv():
       self.step_sim_and_render()
 
     if self.hand_empty():
+      # if hand is empty, then pick was not successful
+      # print("pick was not successful")
       return False
-    
-
-    if obj_to_pick == 'blue block' and not self.hand_empty():
-      # check the object that is closest to the gripper
+    else:
+      # if the hand is not empty, check whether the object picked is the correct object
       obj_pos = []
       for objs in self.object_list:
         obj_pos.append(self.get_obj_pos(objs).copy())
@@ -386,10 +386,10 @@ class PickPlaceEnv():
       closest_obj = self.object_list[np.argmin(dist)]
       # print(f"closest object to gripper is {closest_obj}")
       if closest_obj == obj_to_pick:
-        print("picked up the correct object!")
-
-
-    return True
+        # print("picked up the correct object!")
+        return True
+      
+    return False
 
     # observation = self.get_observation()
     # reward = self.get_reward()
@@ -489,7 +489,8 @@ class PickPlaceEnv():
         reward = self.get_reward()
         done = False
         info = {}
-        return observation, reward, done, info
+        # return observation, reward, done, info
+        return False
     place_xyz = empty_position
     place_xyz[2] = 0.15
     ee_xyz = self.get_ee_pos()
@@ -506,7 +507,8 @@ class PickPlaceEnv():
         reward = self.get_reward()
         done = False
         info = {}
-        return observation, reward, done, info
+        return False
+        # return observation, reward, done, info
 
     # Place down object.
     while (not self.gripper.detect_contact()) and (place_xyz[2] > 0.03):
@@ -520,7 +522,8 @@ class PickPlaceEnv():
         reward = self.get_reward()
         done = False
         info = {}
-        return observation, reward, done, info
+        return False
+        # return observation, reward, done, info
       for _ in range(3):
         self.step_sim_and_render()
     self.gripper.release()
@@ -537,9 +540,10 @@ class PickPlaceEnv():
         print("max steps reached while moving to hover position after place")
         observation = self.get_observation()
         reward = self.get_reward()
-        done = False
+        done = True
         info = {}
-        return observation, reward, done, info
+        return True
+        # return observation, reward, done, info
 
     place_xyz = np.float32([0, -0.5, 0.2])
     while np.linalg.norm(place_xyz - ee_xyz) > 0.01:
@@ -550,16 +554,19 @@ class PickPlaceEnv():
         print("max steps reached while moving to default position after place")
         observation = self.get_observation()
         reward = self.get_reward()
-        done = False
+        done = True
         info = {}
-        return observation, reward, done, info
+        return True
       ee_xyz = self.get_ee_pos()
 
     observation = self.get_observation()
     reward = self.get_reward()
-    done = False
+    done = True
     info = {}
-    return observation, reward, done, info
+    # return observation, reward, done, info
+    if not self.hand_empty():
+      return False
+    return True
 
     
         
